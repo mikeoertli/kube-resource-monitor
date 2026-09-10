@@ -89,6 +89,19 @@ func newRootCommand() *cobra.Command {
 		Long:    longDescription,
 		Example: rootExamples,
 
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if cmd.Flags().Changed("csv") {
+				if f.csvDir == "" {
+					return fmt.Errorf("--csv requires a non-empty output directory")
+				}
+				switch cmd.Name() {
+				case "krm", "top", "watch", "notify":
+				default:
+					return fmt.Errorf("--csv is only supported by krm, top, watch, and notify")
+				}
+			}
+			return nil
+		},
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.NoArgs,
@@ -226,6 +239,9 @@ func runOnce(cmd *cobra.Command, f *globalFlags) error {
 	if err != nil {
 		return err
 	}
+	if err := exportCSV(f.csvDir, snap); err != nil {
+		return err
+	}
 	model.Sort(snap.Rows, r.sortKey, !f.reverse)
 
 	out := cmd.OutOrStdout()
@@ -336,6 +352,7 @@ func runWatch(cmd *cobra.Command, f *globalFlags) error {
 	}
 
 	return tui.Run(tui.Config{
+		OnSnapshot:  func(snap *inventory.Snapshot) error { return exportCSV(f.csvDir, snap) },
 		Collector:   r.collector,
 		Options:     r.invOpts,
 		Render:      r.rendOpts,
@@ -347,4 +364,11 @@ func runWatch(cmd *cobra.Command, f *globalFlags) error {
 		Sort:        r.sortKey,
 		Descending:  !f.reverse,
 	})
+}
+
+func exportCSV(dir string, snap *inventory.Snapshot) error {
+	if dir == "" {
+		return nil
+	}
+	return render.AppendResourceCSV(dir, snap.Taken, snap.Rows)
 }

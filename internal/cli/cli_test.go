@@ -3,7 +3,10 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -414,5 +417,37 @@ func TestVersionJSON(t *testing.T) {
 	// rebuilding.
 	if doc.Source == "" {
 		t.Error("version JSON should say where the version came from")
+	}
+}
+
+func TestCSVDirectory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "exports")
+	for i := 0; i < 2; i++ {
+		out, err := run(t, "top", "-n", "prod", "--csv", dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out, "TOTAL") {
+			t.Fatal("CSV disabled normal output")
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "prod__deployment__storefront.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, err := csv.NewReader(strings.NewReader(string(data))).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 3 || records[1][3] != "storefront" {
+		t.Fatalf("bad CSV: %v", records)
+	}
+}
+
+func TestCSVRequiresDirectory(t *testing.T) {
+	for _, args := range [][]string{{"top", "--csv"}, {"top", "--csv="}, {"version", "--csv", "unused"}} {
+		if _, err := run(t, args...); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
 	}
 }

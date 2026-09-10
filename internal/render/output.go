@@ -155,8 +155,11 @@ func WriteJSON(w io.Writer, e Export) error {
 // WriteCSV emits one flat record per row, including children, so spreadsheet
 // users get the full breakdown rather than only the top level.
 func WriteCSV(w io.Writer, e Export) error {
+	return writeCSV(w, e, true)
+}
+
+func writeCSV(w io.Writer, e Export, includeHeader bool) error {
 	cw := csv.NewWriter(w)
-	defer cw.Flush()
 
 	header := []string{
 		"timestamp", "kind", "namespace", "name", "node", "ready", "phase", "restarts",
@@ -165,8 +168,10 @@ func WriteCSV(w io.Writer, e Export) error {
 		"storage_used_bytes", "storage_capacity_bytes", "storage_percent",
 		"metrics_missing",
 	}
-	if err := cw.Write(header); err != nil {
-		return err
+	if includeHeader {
+		if err := cw.Write(header); err != nil {
+			return err
+		}
 	}
 
 	ts := e.Timestamp.UTC().Format(time.RFC3339)
@@ -189,7 +194,11 @@ func WriteCSV(w io.Writer, e Export) error {
 		}
 		return nil
 	}
-	return walk(e.Rows)
+	if err := walk(e.Rows); err != nil {
+		return err
+	}
+	cw.Flush()
+	return cw.Error()
 }
 
 // WritePrometheus emits the exposition format.

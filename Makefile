@@ -1,6 +1,6 @@
 BINARY  := krm
 PKG     := github.com/mikeoertli/kube_resource_monitor
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+VERSION ?= $(shell cat VERSION)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -56,12 +56,11 @@ clean:
 # ---------------------------------------------------------------------------
 # Releasing
 #
-# The version comes from git tags, so releasing is: write the changelog entry,
-# tag, push. Nothing is generated into the tree.
+# Development versions come from VERSION. Tags are optional official releases;
+# changelog entries follow VERSION even when no release is planned.
 # ---------------------------------------------------------------------------
 
-# What a build right now would report. Useful for confirming a tag took effect
-# before you push it.
+# What a build right now would report, using the current VERSION file.
 version:
 	@echo "version: $(VERSION)"
 	@echo "commit:  $(COMMIT)"
@@ -75,7 +74,7 @@ ifndef V
 endif
 	@case "$(V)" in v*) echo "V should not start with v (got $(V)); the tag gets the v"; exit 1;; esac
 	@if [ -n "$$(git status --porcelain)" ]; then 		echo "working tree is dirty; commit or stash first"; exit 1; fi
-	@if ! grep -q "^## \[$(V)\]" CHANGELOG.md; then 		echo "CHANGELOG.md has no '## [$(V)]' section."; 		echo "Move the Unreleased entries under a new heading first:"; 		echo ""; 		echo "  ## [$(V)] - $$(date -u +%Y-%m-%d)"; 		exit 1; fi
+	@if ! grep -q "^## \[$(V)\]" CHANGELOG.md; then 		echo "CHANGELOG.md has no '## [$(V)]' section."; 		echo "Add the version heading following the VERSION changelog workflow:"; 		echo ""; 		echo "  ## [$(V)] - $$(date -u +%Y-%m-%d)"; 		exit 1; fi
 	@if git rev-parse "v$(V)" >/dev/null 2>&1; then 		echo "tag v$(V) already exists"; exit 1; fi
 	@echo "ready to tag v$(V)"
 

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -461,5 +462,25 @@ func TestHelpOverlayExplainsTheModes(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("help overlay missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestSnapshotExport(t *testing.T) {
+	calls := 0
+	writeErr := errors.New("CSV disk full")
+	m := New(Config{Palette: render.NewPalette(false), OnSnapshot: func(*inventory.Snapshot) error { calls++; return writeErr }})
+	m.Update(snapshotMsg{snap: &inventory.Snapshot{}, generation: 1})
+	m.Update(snapshotMsg{err: errors.New("collection failed")})
+	if calls != 0 {
+		t.Fatal("exported stale or failed collection")
+	}
+	for i := 0; i < 2; i++ {
+		m.Update(snapshotMsg{snap: &inventory.Snapshot{}})
+	}
+	if calls != 2 || !errors.Is(m.lastErr, writeErr) {
+		t.Fatalf("calls=%d error=%v", calls, m.lastErr)
+	}
+	if m.snapshot == nil {
+		t.Fatal("export error hid collected data")
 	}
 }

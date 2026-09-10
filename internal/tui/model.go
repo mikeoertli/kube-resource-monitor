@@ -25,10 +25,11 @@ type Collector interface {
 
 // Config configures the UI.
 type Config struct {
-	Collector Collector
-	Options   inventory.Options
-	Render    render.Options
-	Palette   *render.Palette
+	OnSnapshot func(*inventory.Snapshot) error
+	Collector  Collector
+	Options    inventory.Options
+	Render     render.Options
+	Palette    *render.Palette
 
 	Interval time.Duration
 	// ContextName and Namespace are shown in the status bar.
@@ -172,6 +173,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.lastErr = nil
+		if m.cfg.OnSnapshot != nil {
+			m.lastErr = m.cfg.OnSnapshot(msg.snap)
+		}
 		m.snapshot = msg.snap
 		m.lastRefresh = time.Now()
 		m.rebuild()

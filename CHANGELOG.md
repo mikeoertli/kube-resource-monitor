@@ -5,33 +5,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Versioning policy
+## [0.2.0] - Work in progress
 
-`krm` is pre-1.0. Until 1.0, the minor version is where breaking changes land:
+### Added
 
-| Change | Bump |
-| --- | --- |
-| Breaking change to flags, subcommands, or output shape | minor (`0.2.0` → `0.3.0`) |
-| New feature, backward compatible | minor (`0.2.0` → `0.3.0`) |
-| Bug fix, no interface change | patch (`0.2.0` → `0.2.1`) |
-
-Two surfaces are worth calling out because they are the ones scripts depend on:
-
-- **`-o json`, `-o csv`, `-o prometheus`.** Fields may be added in any release.
-  Fields will not be removed, renamed, or change meaning outside a minor bump,
-  and every such change is listed under **Changed** below. Note that optional
-  fields are *absent* rather than zero when a value does not exist — an
-  undeclared CPU limit means no `cpuLimitMilli` key at all — so decode into a
-  type that can tell those apart.
-- **Exit codes.** `0` success, `1` error, `2` a threshold breach from
-  `krm notify --once --exit-code`. These will not be reassigned.
-
-Terminal rendering, colors, key bindings, and log wording are not part of any
-compatibility promise.
-
-## [Unreleased]
-
-Nothing yet.
+- `--csv <output-dir>` appends timestamped samples to one CSV per resource in
+  snapshot, watch, and notify modes, preserving the normal terminal output.
+  Filenames use lowercase resource types and underscores for spaces and slashes.
+  CSV columns start with the UTC sample timestamp, followed by resource identity,
+  status, usage, requests, limits, percentages, and missing-metrics status.
+- `VERSION` tracks the development version and supplies the version for Makefile
+  builds. Changes belong under its matching `Work in progress` heading; a version
+  bump dates the previous heading and starts a new work-in-progress section.
 
 ## [0.1.0] - 2026-08-19
 
@@ -87,5 +72,5 @@ they change the numbers you see:
 - A pod with no metrics sample renders as `-`, never as `0m`. A percentage with
   no denominator renders as `-`, never as `0%`.
 
-[Unreleased]: https://github.com/mikeoertli/kube_resource_monitor/compare/v0.1.0...HEAD
+[0.2.0]: https://github.com/mikeoertli/kube_resource_monitor/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/mikeoertli/kube_resource_monitor/releases/tag/v0.1.0

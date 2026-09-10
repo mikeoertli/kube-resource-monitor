@@ -102,6 +102,9 @@ hovering right at the line from flapping between firing and resolved.`,
 				if err != nil {
 					return err
 				}
+				if err := exportCSV(f.csvDir, snap); err != nil {
+					return err
+				}
 				for _, a := range watcher.Evaluate(snap.Rows) {
 					if a.Firing {
 						breached = true

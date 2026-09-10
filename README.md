@@ -135,6 +135,36 @@ krm --bars=false           # numbers only
 krm --bar-style ascii      # for terminals that mangle box drawing
 ```
 
+### CSV files
+
+```sh
+krm --csv ./samples                   # append samples while the live view runs
+krm top --csv ./samples               # append a single snapshot
+krm watch -g pod --csv ./samples      # record each refresh by pod
+```
+
+`--csv <output-dir>` creates the directory and writes one CSV per resource,
+including collected pod and container children. Files are named
+`<namespace>__<kind>__<name>.csv`, for example
+`prod__deployment__storefront.csv`. Container filenames include their pod name
+(for example, `prod__container__storefront-abc_app.csv`) so containers in different pods stay separate.
+Resource types are lowercase; spaces, slashes, and other special filename
+characters become underscores. Cluster-scoped resources have an empty namespace prefix.
+
+Each file gets one header and timestamped samples appended on every successful
+collection, including across runs. Use a separate directory for each cluster.
+The first column is the sample timestamp in UTC (RFC 3339). The complete column
+order matches `-o csv`:
+
+```text
+timestamp,kind,namespace,name,node,ready,phase,restarts,cpu_milli,cpu_request_milli,cpu_limit_milli,cpu_percent_of_limit,mem_bytes,mem_request_bytes,mem_limit_bytes,mem_percent_of_limit,storage_used_bytes,storage_capacity_bytes,storage_percent,metrics_missing
+```
+
+CPU values are in millicores; memory and storage are in bytes. Grouping and filters
+control which resources are collected; expanding or collapsing the live view
+does not affect exports. Normal terminal output continues, and `notify` also
+supports `--csv`. Use `-o csv` for a single combined CSV on stdout.
+
 ### Watching
 
 ```sh
@@ -241,10 +271,11 @@ limits, a container over its limit, an unscraped pod, and a nearly-full volume.
 
 ## Versioning
 
-`krm` follows [Semantic Versioning](https://semver.org/) and keeps a
-[CHANGELOG](CHANGELOG.md). It is pre-1.0, so breaking changes land in minor
-bumps; the changelog states exactly which surfaces are covered by that promise
-and which (colors, key bindings, log wording) are not.
+`VERSION` holds the current development version. Record changes under that
+version in [CHANGELOG.md](CHANGELOG.md), marked `Work in progress`. When bumping
+`VERSION`, replace the previous version’s `Work in progress` with the current
+date (`YYYY-MM-DD`) and add a new `## [<VERSION>] - Work in progress` section.
+No tag or official release is needed for this workflow.
 
 ```sh
 krm version              # krm v0.1.0 (commit abcdef1, built ..., go1.24.7, darwin/arm64)
@@ -253,7 +284,7 @@ krm version -o json      # machine-readable, including where the version came fr
 ```
 
 The version resolves from whichever source is available: `-ldflags` when built
-through the Makefile, the module version when installed with
+through the Makefile (using `VERSION`), the module version when installed with
 `go install ...@v0.1.0`, and the git revision when built from a checkout. A
 build from a modified tree is marked `-dirty`. The `source` field in the JSON
 output says which route a given binary took, which is the quickest way to
@@ -270,18 +301,12 @@ make demo    # run the interactive view against synthetic data
 make version # show what a build right now would report
 ```
 
-### Releasing
+### Optional releases
 
-Versions come from git tags; nothing is generated into the tree.
-
-1. Move the `## [Unreleased]` entries in `CHANGELOG.md` under a new
-   `## [0.2.0] - YYYY-MM-DD` heading and update the link definitions at the
-   bottom.
-2. Commit.
-3. `make tag V=0.2.0` — this refuses to tag a dirty tree, a version the
-   changelog does not describe, or a tag that already exists, and runs
-   `make check` before tagging.
-4. `git push origin main --follow-tags`
+Development versions and changelog entries follow `VERSION` as described above.
+If an official release is wanted later, commit the changes, run
+`make tag V=<version>`, then push the tag. Tagging checks the working tree,
+changelog, formatting, vet, and tests.
 
 `go.sum` is not committed. Run `make deps` (or `go mod tidy`) once after
 cloning to generate it; every dependency version is already pinned in

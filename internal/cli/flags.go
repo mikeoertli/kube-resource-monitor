@@ -47,6 +47,7 @@ type globalFlags struct {
 	sortBy  string
 	reverse bool
 
+	csvDir   string
 	output   string
 	color    bool
 	noColor  bool
@@ -88,6 +89,7 @@ func (f *globalFlags) register(cmd *cobra.Command) {
 	p.StringVar(&f.sortBy, "sort-by", "cpu", "cpu, memory, storage, cpu%, mem%, name, restarts")
 	p.BoolVar(&f.reverse, "reverse", false, "reverse the sort order")
 
+	p.StringVar(&f.csvDir, "csv", "", "append samples to one CSV per resource in this output directory")
 	p.StringVarP(&f.output, "output", "o", "table", "table, json, csv, or prometheus")
 	p.BoolVar(&f.color, "color", false, "force color output even when not writing to a terminal")
 	p.BoolVar(&f.noColor, "no-color", false, "disable color output")

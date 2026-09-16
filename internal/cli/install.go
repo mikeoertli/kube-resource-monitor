@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/kube"
-	"github.com/mikeoertli/kube_resource_monitor/internal/metricsserver"
+	"github.com/mikeoertli/kube-resource-monitor/internal/kube"
+	"github.com/mikeoertli/kube-resource-monitor/internal/metricsserver"
 )
 
 func newInstallCommand(f *globalFlags) *cobra.Command {

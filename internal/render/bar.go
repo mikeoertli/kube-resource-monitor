@@ -3,7 +3,7 @@ package render
 import (
 	"strings"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
 )
 
 // BarStyle selects the glyph set used to draw meters.

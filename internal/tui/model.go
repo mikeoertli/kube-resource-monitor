@@ -11,10 +11,10 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/inventory"
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
-	"github.com/mikeoertli/kube_resource_monitor/internal/notify"
-	"github.com/mikeoertli/kube_resource_monitor/internal/render"
+	"github.com/mikeoertli/kube-resource-monitor/internal/inventory"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/notify"
+	"github.com/mikeoertli/kube-resource-monitor/internal/render"
 )
 
 // Collector is the subset of the inventory collector the UI needs, expressed as

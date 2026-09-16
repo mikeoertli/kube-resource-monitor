@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
 )
 
 // Live reads from metrics.k8s.io.

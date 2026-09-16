@@ -5,7 +5,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - Work in progress
+## [0.3.0] - Work in progress
+
+### Changed
+
+- Updated the Go module path, imports, build configuration, and repository links
+  to `github.com/mikeoertli/kube-resource-monitor` following the repository rename
+  (previousy used underscores: `kube_resource_monitor`).
+
+
+## [0.2.0] - 2026-09-16
 
 ### Added
 
@@ -72,5 +81,5 @@ they change the numbers you see:
 - A pod with no metrics sample renders as `-`, never as `0m`. A percentage with
   no denominator renders as `-`, never as `0%`.
 
-[0.2.0]: https://github.com/mikeoertli/kube_resource_monitor/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/mikeoertli/kube_resource_monitor/releases/tag/v0.1.0
+[0.2.0]: https://github.com/mikeoertli/kube-resource-monitor/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/mikeoertli/kube-resource-monitor/releases/tag/v0.1.0

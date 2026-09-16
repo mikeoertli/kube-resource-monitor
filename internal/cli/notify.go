@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/notify"
+	"github.com/mikeoertli/kube-resource-monitor/internal/notify"
 )
 
 func newNotifyCommand(f *globalFlags) *cobra.Command {

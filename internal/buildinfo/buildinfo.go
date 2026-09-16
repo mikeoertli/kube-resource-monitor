@@ -4,7 +4,7 @@
 // get depends entirely on how the binary was produced:
 //
 //   - `make build` / `make install` stamp it in with -ldflags.
-//   - `go install github.com/mikeoertli/kube_resource_monitor/cmd/krm@v0.2.0`
+//   - `go install github.com/mikeoertli/kube-resource-monitor/cmd/krm@v0.2.0`
 //     sets no ldflags at all, but the module version is recorded in the
 //     binary's build info.
 //   - `go build ./cmd/krm` in a git checkout sets neither, but the Go
@@ -61,7 +61,7 @@ func trimDirtySuffix(v string) (string, bool) {
 
 // Set at build time with, for example:
 //
-//	go build -ldflags "-X github.com/mikeoertli/kube_resource_monitor/internal/buildinfo.version=v0.2.0"
+//	go build -ldflags "-X github.com/mikeoertli/kube-resource-monitor/internal/buildinfo.version=v0.2.0"
 var (
 	version string
 	commit  string

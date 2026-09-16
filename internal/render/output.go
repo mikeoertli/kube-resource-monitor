@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
 )
 
 // Format selects an output encoding.

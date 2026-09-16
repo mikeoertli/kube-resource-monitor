@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
 )
 
 // Owner is the workload a pod ultimately belongs to.

@@ -9,7 +9,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
 )
 
 // Comparison is the direction of a threshold test.

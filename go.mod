@@ -1,4 +1,4 @@
-module github.com/mikeoertli/kube_resource_monitor
+module github.com/mikeoertli/kube-resource-monitor
 
 go 1.24.2
 

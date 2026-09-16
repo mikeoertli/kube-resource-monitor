@@ -9,7 +9,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
 )
 
 // PodSample is one pod's measured consumption, broken out per container.

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
 )
 
 func TestParseRulePercent(t *testing.T) {

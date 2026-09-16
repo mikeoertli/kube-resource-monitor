@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
 )
 
 // AppendResourceCSV records every resource, including children, in a separate

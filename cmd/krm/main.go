@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/cli"
+	"github.com/mikeoertli/kube-resource-monitor/internal/cli"
 )
 
 func main() {

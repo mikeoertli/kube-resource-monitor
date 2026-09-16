@@ -9,8 +9,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/metrics"
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/metrics"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
 )
 
 // collectPVC builds volume rows.

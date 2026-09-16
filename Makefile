@@ -1,5 +1,5 @@
 BINARY  := krm
-PKG     := github.com/mikeoertli/kube_resource_monitor
+PKG     := github.com/mikeoertli/kube-resource-monitor
 VERSION ?= $(shell cat VERSION)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)

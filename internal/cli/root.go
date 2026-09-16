@@ -9,12 +9,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/buildinfo"
-	"github.com/mikeoertli/kube_resource_monitor/internal/inventory"
-	"github.com/mikeoertli/kube_resource_monitor/internal/kube"
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
-	"github.com/mikeoertli/kube_resource_monitor/internal/render"
-	"github.com/mikeoertli/kube_resource_monitor/internal/tui"
+	"github.com/mikeoertli/kube-resource-monitor/internal/buildinfo"
+	"github.com/mikeoertli/kube-resource-monitor/internal/inventory"
+	"github.com/mikeoertli/kube-resource-monitor/internal/kube"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/render"
+	"github.com/mikeoertli/kube-resource-monitor/internal/tui"
 )
 
 const longDescription = `krm shows what your Kubernetes workloads are actually consuming,

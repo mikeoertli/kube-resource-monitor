@@ -18,7 +18,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/buildinfo"
+	"github.com/mikeoertli/kube-resource-monitor/internal/buildinfo"
 )
 
 // MetricsGroupVersion is the API group the metrics-server serves.

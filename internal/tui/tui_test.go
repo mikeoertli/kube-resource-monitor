@@ -10,9 +10,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mikeoertli/kube_resource_monitor/internal/inventory"
-	"github.com/mikeoertli/kube_resource_monitor/internal/model"
-	"github.com/mikeoertli/kube_resource_monitor/internal/render"
+	"github.com/mikeoertli/kube-resource-monitor/internal/inventory"
+	"github.com/mikeoertli/kube-resource-monitor/internal/model"
+	"github.com/mikeoertli/kube-resource-monitor/internal/render"
 )
 
 // stubCollector returns a canned snapshot and records how it was called.

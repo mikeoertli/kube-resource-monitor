@@ -44,7 +44,7 @@ NAME                KIND    READY   CPU  CPU LIM  CPU%  CPU USE          MEM  ME
 ## Install
 
 ```sh
-go install github.com/mikeoertli/kube_resource_monitor/cmd/krm@latest
+go install github.com/mikeoertli/kube-resource-monitor/cmd/krm@latest
 ```
 
 Or from a clone:
@@ -315,3 +315,7 @@ cloning to generate it; every dependency version is already pinned in
 ## License
 
 MIT.
+
+## Related
+
+Check out my new Kubernetes context management TUI too – [`kcm` (kube-context-manager)](https://github.com/mikeoertli/kube-context-manager).

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mikeoertli/kube-resource-monitor/internal/model"
@@ -180,7 +181,7 @@ func (m *Model) footer() string {
 	p := m.cfg.Palette
 
 	if m.filtering {
-		return p.Accent.Render("filter ") + m.filter.View()
+		return p.Accent.Render("filter ") + m.filter.View() + "\n" + strings.Join(m.menuLines(), "\n")
 	}
 
 	var totals string
@@ -204,13 +205,14 @@ func (m *Model) footer() string {
 			p.Value.Render("Q") + p.Muted.Render(" quit · ") +
 			p.Value.Render("?") + p.Muted.Render(" keys · ") +
 			p.Muted.Render("`krm top` prints one table instead")
-	} else {
-		hints = p.Muted.Render("? help  / filter  t group  s sort  c containers  p pause  Q quit")
 	}
 
 	line1 := clip(totals+pos, m.width)
 	line2 := clip(m.tbl.Legend(), m.width)
-	line3 := clip(hints, m.width)
+	line3 := strings.Join(m.menuLines(), "\n")
+	if hints != "" {
+		line3 = clip(hints, m.width) + "\n" + line3
+	}
 
 	filterNote := ""
 	if v := m.filter.Value(); v != "" {
@@ -243,7 +245,12 @@ func (m *Model) helpView() string {
 		b.WriteString("\n")
 		for _, bind := range g.Bindings {
 			h := bind.Help()
-			b.WriteString("  " + p.Value.Render(pad(h.Key, 10)) + p.Muted.Render(h.Desc) + "\n")
+			text := pad(h.Key, 10) + h.Desc
+			if m.activeMenu == h.Key {
+				b.WriteString("  " + p.MenuSelected.Render(text) + "\n")
+			} else {
+				b.WriteString("  " + p.Value.Render(pad(h.Key, 10)) + p.Muted.Render(h.Desc) + "\n")
+			}
 		}
 		b.WriteString("\n")
 	}
@@ -319,4 +326,35 @@ func truncate(s string, width int) string {
 	// Reset in case we cut inside a styled run.
 	b.WriteString("\x1b[0m")
 	return b.String()
+}
+
+// menuLines keeps controls visible and highlights the entire selected item.
+func (m *Model) menuLines() []string {
+	items := []struct {
+		binding key.Binding
+		label   string
+	}{
+		{keys.Help, "? help"}, {keys.Filter, "/ filter"}, {keys.Group, "t group"},
+		{keys.Sort, "s sort"}, {keys.Containers, "c containers"}, {keys.Pause, "p pause"}, {keys.Quit, "Q quit"},
+		{keys.Expand, "↵ expand"}, {keys.ExpandAll, "E expand all"}, {keys.CollapseAll, "C collapse all"},
+		{keys.Requests, "q requests"}, {keys.Limits, "l limits"}, {keys.Namespaces, "a namespaces"},
+		{keys.OnlyProblem, "! hot"}, {keys.ClearFilter, "esc clear"},
+		{keys.SortReverse, "r reverse"}, {keys.Bars, "b bars"}, {keys.Refresh, "R refresh"},
+		{keys.Faster, "+ faster"}, {keys.Slower, "- slower"},
+	}
+	var lines []string
+	line := ""
+	for _, item := range items {
+		text := " " + item.label + " "
+		rendered := m.cfg.Palette.Muted.Render(text)
+		if m.activeMenu == item.binding.Help().Key {
+			rendered = m.cfg.Palette.MenuSelected.Render(text)
+		}
+		if line != "" && m.width > 0 && lipgloss.Width(line)+lipgloss.Width(rendered) > m.width {
+			lines = append(lines, line)
+			line = ""
+		}
+		line += rendered
+	}
+	return append(lines, line)
 }

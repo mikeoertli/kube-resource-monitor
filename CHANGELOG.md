@@ -5,7 +5,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - Work in progress
+## [1.0.0] - Work in progress
+
+### Added
+
+- TUI menu actions briefly highlight in bright pink with black text when pressed,
+  making keyboard interactions easier to follow.
+- VHS demo tape and README animation showcasing synthetic metrics, live controls,
+  resource grouping, alerts, and CSV export, with highlighted TUI menu actions.
+  Regenerate with `make demo-gif`.
+
+### Changed
+
+- Promoted krm to version 1.0.0.
+
+## [0.3.0] - 2026-10-01
 
 ### Changed
 

@@ -78,15 +78,16 @@ func (t Thresholds) Classify(f float64, ok bool) Severity {
 // terminal and a dark one: the dark variants are brighter, the light variants
 // are darker, and both keep enough contrast against their background.
 type Palette struct {
-	styles  map[Severity]lipgloss.Style
-	Muted   lipgloss.Style
-	Header  lipgloss.Style
-	Label   lipgloss.Style
-	Value   lipgloss.Style
-	Warning lipgloss.Style
-	Error   lipgloss.Style
-	Accent  lipgloss.Style
-	Enabled bool
+	styles       map[Severity]lipgloss.Style
+	Muted        lipgloss.Style
+	Header       lipgloss.Style
+	Label        lipgloss.Style
+	Value        lipgloss.Style
+	Warning      lipgloss.Style
+	Error        lipgloss.Style
+	Accent       lipgloss.Style
+	MenuSelected lipgloss.Style
+	Enabled      bool
 }
 
 // NewPalette builds the color scheme. Pass enabled=false for plain text.
@@ -98,7 +99,7 @@ func NewPalette(enabled bool) *Palette {
 			p.styles[s] = blank
 		}
 		p.Muted, p.Header, p.Label, p.Value = blank, blank, blank, blank
-		p.Warning, p.Error, p.Accent = blank, blank, blank
+		p.Warning, p.Error, p.Accent, p.MenuSelected = blank, blank, blank, blank
 		return p
 	}
 
@@ -120,6 +121,7 @@ func NewPalette(enabled bool) *Palette {
 	p.Value = lipgloss.NewStyle().Foreground(c("#f9fafb", "#111827"))
 	p.Warning = lipgloss.NewStyle().Foreground(c("#fbbf24", "#b45309"))
 	p.Error = lipgloss.NewStyle().Foreground(c("#f87171", "#b91c1c")).Bold(true)
+	p.MenuSelected = lipgloss.NewStyle().Background(lipgloss.Color("#ff4fd8")).Foreground(lipgloss.Color("#000000")).Bold(true)
 	p.Accent = lipgloss.NewStyle().Foreground(c("#60a5fa", "#1d4ed8"))
 	return p
 }

@@ -77,7 +77,9 @@ type Model struct {
 	tbl *render.Table
 	// generation guards against a slow in-flight collection landing after the
 	// user has already changed the query it was answering.
-	generation int
+	generation     int
+	activeMenu     string
+	menuGeneration int
 }
 
 // New builds the model.
@@ -111,6 +113,10 @@ type snapshotMsg struct {
 }
 
 type tickMsg time.Time
+
+type menuHighlightExpiredMsg int
+
+const menuHighlightDuration = 1500 * time.Millisecond
 
 // Init implements tea.Model.
 func (m *Model) Init() tea.Cmd {
@@ -186,8 +192,34 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.alertTime = time.Now()
 		return m, nil
 
+	case menuHighlightExpiredMsg:
+		if int(msg) == m.menuGeneration {
+			m.activeMenu = ""
+		}
+		return m, nil
 	case tea.KeyMsg:
-		return m.handleKey(msg)
+		var highlight tea.Cmd
+		if !m.filtering || msg.String() == "enter" || msg.String() == "esc" {
+			for _, group := range helpGroups {
+				for _, binding := range group.Bindings {
+					if key.Matches(msg, binding) {
+						m.activeMenu = binding.Help().Key
+						if m.filtering && msg.String() == "enter" {
+							m.activeMenu = keys.Filter.Help().Key
+						}
+						m.started = time.Time{}
+						m.menuGeneration++
+						generation := m.menuGeneration
+						highlight = tea.Tick(menuHighlightDuration, func(time.Time) tea.Msg { return menuHighlightExpiredMsg(generation) })
+					}
+				}
+			}
+		}
+		updated, action := m.handleKey(msg)
+		if key.Matches(msg, keys.Quit) && !m.filtering {
+			return updated, action
+		}
+		return updated, tea.Batch(action, highlight)
 	}
 	return m, nil
 }
@@ -495,7 +527,10 @@ func (m *Model) moveCursor(delta int) {
 
 func (m *Model) visibleRows() int {
 	// header + status + filter/legend + footer
-	chrome := 6
+	chrome := 5 + len(m.menuLines())
+	if m.orienting() {
+		chrome++
+	}
 	n := m.height - chrome
 	if n < 1 {
 		n = 1

@@ -10,7 +10,7 @@ LDFLAGS := -s -w \
 	-X $(PKG)/internal/buildinfo.date=$(DATE)
 
 .PHONY: all build install test test-race cover check fmt fmt-check vet clean demo tidy deps \
-        version release-check tag
+        version release-check tag demo-gif
 
 all: check build
 
@@ -49,6 +49,9 @@ tidy deps:
 
 demo: build
 	./bin/$(BINARY) --demo -A
+
+demo-gif: build
+	sh scripts/record-demo.sh
 
 clean:
 	rm -rf bin coverage.out

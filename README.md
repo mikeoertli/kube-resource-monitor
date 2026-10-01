@@ -4,15 +4,12 @@
   
 # kube-resource-monitor (`krm`)
 
-> **⚠️ Notice:**
-> _This is very preliminary and is subject to change, possibly drastically._
-
 A terminal UI for monitoring Kubernetes workload resource usage with snapshot
 or watching indefinitely. Workload resource usage is contextualized with the
 resource request and limit settings.
 
 <p align="center">
-  <img src="assets/png/krm_demo.png" alt="demo screenshot of 'krm --demo'" align="center" width="65%">
+  <img src="assets/krm-demo.gif" alt="krm demo: live usage, container drilldown, filtering, node and volume capacity, alerts, and CSV export" align="center" width="100%">
 </p>
 
 ```
@@ -176,6 +173,8 @@ krm watch -i 10s
 `krm watch` refuses to run when stdout is not a terminal rather than writing
 cursor escapes into your pipe; use `krm top` there.
 
+Pressed menu actions briefly highlight with black text on a bright pink background.
+
 Keys: 
 - `?` help 
 - `↑`/`↓` move 
@@ -298,6 +297,7 @@ make build   # build ./bin/krm
 make test    # go test ./...
 make check   # gofmt, go vet, and tests
 make demo    # run the interactive view against synthetic data
+make demo-gif # rebuild and record assets/krm-demo.gif with VHS
 make version # show what a build right now would report
 ```
 

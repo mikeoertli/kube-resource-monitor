@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mikeoertli/kube-resource-monitor/internal/inventory"
 	"github.com/mikeoertli/kube-resource-monitor/internal/model"
@@ -94,6 +95,12 @@ func deliver(m *Model, cmd tea.Cmd) {
 	for steps := 0; cmd != nil && steps < 16; steps++ {
 		msg := cmd()
 		if msg == nil {
+			return
+		}
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, child := range batch {
+				deliver(m, child)
+			}
 			return
 		}
 		if _, isTick := msg.(tickMsg); isTick {
@@ -482,5 +489,55 @@ func TestSnapshotExport(t *testing.T) {
 	}
 	if m.snapshot == nil {
 		t.Fatal("export error hid collected data")
+	}
+}
+
+func TestMenuHighlightFollowsActionAndExpires(t *testing.T) {
+	m := newTestModel(t, &stubCollector{snap: testSnapshot()})
+	m.cfg.Palette.MenuSelected = lipgloss.NewStyle().Transform(func(s string) string { return "<selected>" + s + "</selected>" })
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	first := m.menuGeneration
+	if !strings.Contains(m.footer(), "<selected> q requests </selected>") {
+		t.Fatalf("missing selected menu item: %s", m.footer())
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	m.Update(menuHighlightExpiredMsg(first))
+	if m.activeMenu != "p" {
+		t.Fatal("older timeout cleared a newer highlight")
+	}
+	m.Update(menuHighlightExpiredMsg(m.menuGeneration))
+	if m.activeMenu != "" || strings.Contains(m.footer(), "<selected>") {
+		t.Fatal("highlight did not expire")
+	}
+}
+
+func TestFilterTextDoesNotHighlightCommands(t *testing.T) {
+	m := newTestModel(t, &stubCollector{snap: testSnapshot()})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	generation := m.menuGeneration
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if m.menuGeneration != generation || m.activeMenu != "/" {
+		t.Fatal("filter text triggered menu highlighting")
+	}
+	if !strings.Contains(m.footer(), "/ filter") {
+		t.Fatal("menu is hidden while filtering")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.activeMenu != "/" {
+		t.Fatal("apply filter should highlight filter action")
+	}
+}
+
+func TestMenuWrapsAndRespectsNoColor(t *testing.T) {
+	m := newTestModel(t, &stubCollector{snap: testSnapshot()})
+	m.width = 50
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'E'}})
+	for _, line := range m.menuLines() {
+		if lipgloss.Width(line) > m.width || strings.Contains(line, "\x1b") {
+			t.Fatalf("bad plain menu line: %q", line)
+		}
+	}
+	if !strings.Contains(strings.Join(m.menuLines(), " "), "E expand all") {
+		t.Fatal("expand control missing")
 	}
 }

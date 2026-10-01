@@ -72,3 +72,28 @@ running edge to edge; everything else is edge to edge.
 Each raster size is rendered natively rather than downsampled from one large
 bitmap. That matters most at 16px, where resampling turns three 1.75px bars into
 a smear.
+
+## Terminal demo
+
+[`demo.tape`](demo.tape) is the [VHS](https://github.com/charmbracelet/vhs)
+sequence for [`krm-demo.gif`](krm-demo.gif), embedded in the main README.
+It demonstrates live metrics, filtering, pod/container drilldown, requests and
+limits, sorting, namespaces, hot-resource filtering, node and PVC capacity, stdout alerts, and CSV
+files. All commands use `--demo`; no cluster or desktop notifications are used.
+
+Install VHS, ttyd, ffmpeg, and Go on your PATH (on macOS: `brew install vhs go`).
+The tape uses Menlo; install it or adjust FontFamily for your platform. Then run
+`make demo-gif` from the repository root. VHS may download its browser on first
+use. The wrapper records in a temporary directory and copies back only the GIF;
+it uses the freshly built local binary and deletes its sample CSVs afterward.
+
+When changing displayed features, CLI syntax, key bindings, layout, or demo data,
+update the tape as needed and regenerate the GIF in the same change. Inspect
+the animation for clipped columns, errors, readable pacing, and working
+interactions. Recording is repeatable, but metrics and timestamps vary naturally.
+No upload, commit, or push happens during recording.
+
+The TUI highlights the selected menu item with black text on a bright pink
+background for 1.5 seconds after a control is pressed. The recording uses this
+application behavior directly; keep pauses between actions so viewers can follow
+which menu item is selected.

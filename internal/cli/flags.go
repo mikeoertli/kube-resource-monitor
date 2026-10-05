@@ -88,7 +88,7 @@ func (f *globalFlags) register(cmd *cobra.Command) {
 	p.BoolVar(&f.onlyProblems, "only-problems", false, "show only rows at or above --threshold")
 	p.Float64Var(&f.threshold, "threshold", 0.85, "fraction of the limit that counts as a problem")
 
-	p.StringVar(&f.sortBy, "sort-by", "cpu", "cpu, memory, storage, cpu%, mem%, name, restarts")
+	p.StringVar(&f.sortBy, "sort-by", "cpu", "cpu, memory, cpu%, mem%, name, restarts; storage: use%, kind, request, used")
 	p.BoolVar(&f.reverse, "reverse", false, "reverse the sort order")
 
 	p.StringVar(&f.csvDir, "csv", "", "append samples to one CSV per resource in this output directory")
@@ -119,8 +119,10 @@ type resolved struct {
 func parseSortKey(s string) (model.SortKey, error) {
 	switch k := model.SortKey(s); k {
 	case model.SortName, model.SortCPU, model.SortMemory, model.SortStorage,
-		model.SortCPUPercent, model.SortMemPercent, model.SortRestarts:
+		model.SortCPUPercent, model.SortMemPercent, model.SortRestarts, model.SortStoragePercent, model.SortKind, model.SortStorageRequest, model.SortStorageUsed:
 		return k, nil
+	case "storage%", "used%":
+		return model.SortStoragePercent, nil
 	case "mem":
 		return model.SortMemory, nil
 	case "cpu-percent", "cpupercent":
@@ -130,7 +132,7 @@ func parseSortKey(s string) (model.SortKey, error) {
 	case "":
 		return model.SortCPU, nil
 	default:
-		return "", fmt.Errorf("unknown --sort-by %q (want cpu, memory, storage, cpu%%, mem%%, name, or restarts)", s)
+		return "", fmt.Errorf("unknown --sort-by %q (want cpu, memory, storage, cpu%%, mem%%, name, restarts, use%%, kind, request, or used)", s)
 	}
 }
 
@@ -207,8 +209,13 @@ func (f *globalFlags) resolve(ctx context.Context) (*resolved, error) {
 			Thresholds:      render.DefaultThresholds,
 		},
 	}
-	if r.rendOpts.Storage && (sortKey == model.SortCPU || sortKey == model.SortMemory) {
-		r.sortKey = model.SortStorage
+	if r.rendOpts.Storage {
+		if !model.IsStorageSortKey(sortKey) {
+			return nil, fmt.Errorf("--sort-by %s is not available for storage (want use%%, kind, request, used, or name)", sortKey)
+		}
+		if sortKey == model.SortStorage {
+			r.sortKey = model.SortStorageUsed
+		}
 	}
 	r.palette = render.NewPalette(render.ColorEnabled(f.color, f.noColor) && format == render.FormatTable)
 

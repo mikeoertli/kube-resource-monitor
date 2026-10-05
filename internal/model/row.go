@@ -160,17 +160,33 @@ func (r *Row) Rollup() {
 type SortKey string
 
 const (
-	SortName       SortKey = "name"
-	SortCPU        SortKey = "cpu"
-	SortMemory     SortKey = "memory"
-	SortStorage    SortKey = "storage"
-	SortCPUPercent SortKey = "cpu%"
-	SortMemPercent SortKey = "mem%"
-	SortRestarts   SortKey = "restarts"
+	SortName           SortKey = "name"
+	SortCPU            SortKey = "cpu"
+	SortMemory         SortKey = "memory"
+	SortStoragePercent SortKey = "use%"
+	SortKind           SortKey = "kind"
+	SortStorageRequest SortKey = "request"
+	SortStorageUsed    SortKey = "used"
+	SortStorage        SortKey = "storage"
+	SortCPUPercent     SortKey = "cpu%"
+	SortMemPercent     SortKey = "mem%"
+	SortRestarts       SortKey = "restarts"
 )
 
 // AllSortKeys is the cycle order used by the TUI's sort toggle.
 var AllSortKeys = []SortKey{SortCPU, SortMemory, SortCPUPercent, SortMemPercent, SortName, SortRestarts, SortStorage}
+
+// StorageSortKeys excludes metrics which are not displayed in storage views.
+var StorageSortKeys = []SortKey{SortStoragePercent, SortKind, SortStorageRequest, SortStorageUsed}
+
+func IsStorageSortKey(key SortKey) bool {
+	for _, candidate := range StorageSortKeys {
+		if key == candidate {
+			return true
+		}
+	}
+	return key == SortName || key == SortStorage
+}
 
 // Sort orders rows in place, recursing into children so an expanded subtree
 // follows the same ordering as its parent list.
@@ -189,7 +205,7 @@ func Sort(rows []*Row, key SortKey, descending bool) {
 			if a.Usage.Used.MemBytes != b.Usage.Used.MemBytes {
 				return a.Usage.Used.MemBytes < b.Usage.Used.MemBytes
 			}
-		case SortStorage:
+		case SortStorage, SortStorageUsed:
 			if a.Usage.Used.StorageBytes != b.Usage.Used.StorageBytes {
 				return a.Usage.Used.StorageBytes < b.Usage.Used.StorageBytes
 			}
@@ -223,24 +239,71 @@ func Sort(rows []*Row, key SortKey, descending bool) {
 	}
 
 	sort.SliceStable(rows, func(i, j int) bool {
-		if key == SortName {
-			if rows[i].Namespace != rows[j].Namespace {
-				lt := rows[i].Namespace < rows[j].Namespace
-				if descending {
-					return !lt
+		a, b := rows[i], rows[j]
+		if key == SortStoragePercent || key == SortStorageRequest || key == SortStorageUsed || key == SortStorage || key == SortKind {
+			var av, bv float64
+			var ai, bi int64
+			aok, bok := true, true
+			switch key {
+			case SortStoragePercent:
+				av, aok = a.Usage.StorageBoundFraction()
+				bv, bok = b.Usage.StorageBoundFraction()
+				aok = aok && !a.MetricsMissing
+				bok = bok && !b.MetricsMissing
+			case SortStorageRequest:
+				ai = a.Usage.Requests.StorageBytes
+				bi = b.Usage.Requests.StorageBytes
+				aok = a.Usage.HasStorageRequest
+				bok = b.Usage.HasStorageRequest
+			case SortStorage, SortStorageUsed:
+				ai = a.Usage.Used.StorageBytes
+				bi = b.Usage.Used.StorageBytes
+				aok = !a.MetricsMissing
+				bok = !b.MetricsMissing
+			case SortKind:
+				if a.Kind != b.Kind {
+					if descending {
+						return a.Kind.Short() > b.Kind.Short()
+					}
+					return a.Kind.Short() < b.Kind.Short()
 				}
-				return lt
 			}
-			lt := rows[i].Name < rows[j].Name
+			if aok != bok {
+				return aok
+			} // Unknown values stay last in either direction.
+			if aok && ai != bi {
+				if descending {
+					return ai > bi
+				}
+				return ai < bi
+			}
+			if aok && av != bv {
+				if descending {
+					return av > bv
+				}
+				return av < bv
+			}
+			if a.Namespace != b.Namespace {
+				return a.Namespace < b.Namespace
+			}
+			return a.Name < b.Name
+		}
+		if key == SortName {
+			if a.Namespace != b.Namespace {
+				if descending {
+					return a.Namespace > b.Namespace
+				}
+				return a.Namespace < b.Namespace
+			}
 			if descending {
-				return !lt
+				return a.Name > b.Name
 			}
-			return lt
+			return a.Name < b.Name
 		}
 		if descending {
-			return less(rows[j], rows[i])
+			return less(b, a)
 		}
-		return less(rows[i], rows[j])
+		return less(a, b)
 	})
 
 	for _, r := range rows {

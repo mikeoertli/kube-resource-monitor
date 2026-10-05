@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/mikeoertli/kube-resource-monitor/internal/model"
@@ -122,46 +123,26 @@ func Sparkline(values []float64, max float64) string {
 	return b.String()
 }
 
-// StorageBar draws usage fill with request and limit/capacity markers on the
-// same scale. Over-limit usage extends the scale instead of hiding the excess.
-func StorageBar(u model.Usage, known bool, width int, style BarStyle) string {
-	if width <= 0 {
-		return ""
+// StorageComparison labels a conventional bar with the true percentage.
+// Missing denominators and measurements never produce a filled meter.
+func StorageComparison(u model.Usage, known, request bool, width int, style BarStyle, showBars bool) string {
+	var fraction float64
+	var ok bool
+	if request {
+		fraction, ok = u.Fraction(model.MetricStorage, model.BasisRequest)
+	} else {
+		fraction, ok = u.StorageBoundFraction()
 	}
-	scale := u.Requests.StorageBytes
-	if u.Limits.StorageBytes > scale {
-		scale = u.Limits.StorageBytes
-	}
-	if u.Capacity.StorageBytes > scale {
-		scale = u.Capacity.StorageBytes
-	}
-	if known && u.Used.StorageBytes > scale {
-		scale = u.Used.StorageBytes
-	}
-	if scale <= 0 {
-		return strings.Repeat("·", width)
-	}
-	cells := []rune(Bar(float64(u.Used.StorageBytes)/float64(scale), known, width, style))
-	occupied := map[int]bool{}
-	mark := func(value int64, glyph rune) {
-		i := int(float64(value) / float64(scale) * float64(width-1))
-		if occupied[i] {
-			cells[i] = '*'
+	label := "n/a"
+	if ok {
+		if known {
+			label = model.FormatPercent(fraction, true)
 		} else {
-			cells[i] = glyph
+			label = "unknown"
 		}
-		occupied[i] = true
 	}
-	if u.HasStorageRequest {
-		mark(u.Requests.StorageBytes, 'R')
+	if !showBars {
+		return label
 	}
-	if u.HasStorageLimit {
-		mark(u.Limits.StorageBytes, 'L')
-	} else if u.Capacity.StorageBytes > 0 {
-		mark(u.Capacity.StorageBytes, 'C')
-	}
-	if known {
-		mark(u.Used.StorageBytes, 'U')
-	}
-	return string(cells)
+	return fmt.Sprintf("%7s %s", label, Bar(fraction, ok && known, width, style))
 }

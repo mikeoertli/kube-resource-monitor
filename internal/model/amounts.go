@@ -258,3 +258,15 @@ func ClampFraction(f float64) float64 {
 	}
 	return f
 }
+
+// StorageBoundFraction compares usage with a real limit or filesystem capacity.
+// A request is a reservation, so it is not a fallback bound for this column.
+func (u Usage) StorageBoundFraction() (float64, bool) {
+	if u.PreferCapacity && u.Capacity.StorageBytes > 0 {
+		return u.StorageOfCapacity()
+	}
+	if u.HasStorageLimit {
+		return u.Fraction(MetricStorage, BasisLimit)
+	}
+	return u.StorageOfCapacity()
+}

@@ -139,6 +139,9 @@ func newRootCommand() *cobra.Command {
 			if cmd.Flags().Changed("type") && f.groupBy != "storage" {
 				return fmt.Errorf("--type requires krm storage or --group-by storage")
 			}
+			if f.groupBy == "storage" && !cmd.Flags().Changed("sort-by") {
+				f.sortBy = "use%"
+			}
 			if f.groupBy == "storage" && !cmd.Flags().Changed("interval") {
 				f.interval = time.Minute
 			}
@@ -229,7 +232,8 @@ func newStorageCommand(f *globalFlags) *cobra.Command {
 
 Use --type ephemeral or --type pvc to filter; the default is --type all.
 
-Bars place request, usage, and limit (or PVC capacity) markers on a common scale.
+Two percentage bars compare usage with request and with limit/PVC capacity.
+Storage sorts by use% by default. Press s to cycle use%, kind, request and used.
 Usage comes from kubelet summary stats and requires nodes/proxy access. Missing
 measurements are shown as unknown while declared budgets remain visible.
 

@@ -608,3 +608,27 @@ func TestStorageTypeFiltersAndValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestStorageDefaultSortAndExplicitSorts(t *testing.T) {
+	out, err := run(t, "storage", "top", "--demo", "-n", "prod", "-o", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct{ Rows []struct{ Kind, Name string } }
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Rows) != 6 || doc.Rows[1].Kind != "EphemeralStorage" {
+		t.Fatalf("default sort is not use%%: %s", out)
+	}
+	for _, sort := range []string{"use%", "kind", "request", "used", "storage", "name"} {
+		if _, err := run(t, "storage", "top", "--sort-by", sort); err != nil {
+			t.Fatalf("%s: %v", sort, err)
+		}
+	}
+	for _, sort := range []string{"cpu", "memory", "cpu%", "mem%", "restarts"} {
+		if _, err := run(t, "storage", "top", "--sort-by", sort); err == nil {
+			t.Fatalf("accepted hidden metric %s", sort)
+		}
+	}
+}

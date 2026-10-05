@@ -297,24 +297,28 @@ func TestParseFormat(t *testing.T) {
 	}
 }
 
-func TestStorageBarCommonScale(t *testing.T) {
-	u := model.Usage{Used: model.Amounts{StorageBytes: 60}, Requests: model.Amounts{StorageBytes: 20}, Limits: model.Amounts{StorageBytes: 100}, HasStorageRequest: true, HasStorageLimit: true, UsedKnown: true}
-	got := StorageBar(u, true, 11, BarASCII)
-	if got[2] != 'R' || got[6] != 'U' || got[10] != 'L' {
-		t.Fatalf("wrong markers: %s", got)
+func TestStorageComparisons(t *testing.T) {
+	u := model.Usage{Used: model.Amounts{StorageBytes: 60}, Requests: model.Amounts{StorageBytes: 20}, Limits: model.Amounts{StorageBytes: 100}, HasStorageRequest: true, HasStorageLimit: true}
+	request := StorageComparison(u, true, true, 10, BarASCII, true)
+	bound := StorageComparison(u, true, false, 10, BarASCII, true)
+	if !strings.Contains(request, "300% ##########") || !strings.Contains(bound, "60% ######----") {
+		t.Fatalf("request=%q bound=%q", request, bound)
 	}
-	if got := StorageBar(u, false, 11, BarASCII); strings.Contains(got, "U") {
-		t.Fatal("unknown usage marker")
+	u.HasStorageLimit = false
+	if got := StorageComparison(u, true, false, 10, BarASCII, true); !strings.Contains(got, "n/a") || strings.Contains(got, "#") {
+		t.Fatalf("invented a bound: %q", got)
 	}
-	u.Used.StorageBytes = 200
-	got = StorageBar(u, true, 11, BarASCII)
-	if got[5] != 'L' || got[10] != 'U' {
-		t.Fatalf("over-limit usage hidden: %s", got)
+	u.HasStorageRequest = false
+	if got := StorageComparison(u, true, true, 10, BarASCII, true); !strings.Contains(got, "n/a") || strings.Contains(got, "#") {
+		t.Fatalf("invented a request: %q", got)
 	}
-	u.Requests.StorageBytes = 100
-	u.Used.StorageBytes = 100
-	if !strings.Contains(StorageBar(u, true, 11, BarASCII), "*") {
-		t.Fatal("coincident markers not identified")
+	u.Capacity.StorageBytes = 120
+	u.PreferCapacity = true
+	if got := StorageComparison(u, true, false, 10, BarASCII, true); !strings.Contains(got, "50% #####-----") {
+		t.Fatalf("wrong capacity comparison: %q", got)
+	}
+	if got := StorageComparison(u, false, false, 10, BarASCII, true); !strings.Contains(got, "unknown") || strings.Contains(got, "#") {
+		t.Fatalf("missing usage drawn as known: %q", got)
 	}
 }
 

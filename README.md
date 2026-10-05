@@ -143,7 +143,7 @@ krm storage top --csv ./samples       # snapshot plus timestamped CSV files
 and PVCs in one table. The **KIND** column identifies each flavor: `ephemeral`
 for a pod's local storage total, `emptydir` for a local volume, and `pvc` for a
 persistent claim. Expand a pod to see its `emptyDir` volumes. Each row keeps its
-own request, usage, and limit/capacity bar. The combined footer reports total
+own usage/request and usage/limit-or-capacity bars. The combined footer reports total
 usage and requests; it avoids a single percentage across unrelated bounds.
 Use `krm storage watch -i 5m` for slower updates or `--csv ./storage-samples`
 to record everything. `-g storage` also works. All storage commands default to
@@ -163,14 +163,31 @@ subcommands, or `-g storage` (including notify mode). The TUI has a single stora
 grouping. Existing `-g pvc` and `-g volume` shorthands remain compatible and map
 to the corresponding type filter.
 
-Storage bars use one scale with **R** for request, **U** for usage, **L** for
-limit, and **C** for PVC capacity. Filled space represents usage; **\*** marks
-coincident markers. Numeric columns keep exact values visible. If usage exceeds
-the limit, the scale expands so the limit marker stays inside the bar. Missing
-usage is shown as `-`, with no usage marker; absence of a declared limit stays
-absent.
+Storage shows two percentage bars:
 
-Storage uses kubelet summary stats and require `nodes/proxy` access; they do
+- **REQ%** compares usage with the requested bytes. Exceeding a request means
+  exceeding the reservation; this bar uses a neutral accent color.
+- **USE%** compares usage with the ephemeral-storage limit or PVC filesystem
+  capacity. Its color indicates how close usage is to that bound.
+
+The numeric percentages can exceed 100%; bars fill at 100%. Missing requests or
+limits show `n/a` and a neutral dotted track. Missing usage shows `unknown`.
+Unbounded storage never appears as a full bar merely because it has usage.
+
+Storage defaults to **USE% descending**, with unknown percentages last. Press
+`s` to cycle **use% → kind → request → used**, and `r` to reverse direction.
+`request` and `used` sort by bytes; CPU and memory sorts are unavailable in this
+view. You can also choose a sort explicitly:
+
+```sh
+krm storage --sort-by use%
+krm storage --sort-by kind
+krm storage --sort-by request
+krm storage --sort-by used
+```
+
+
+Storage uses kubelet summary stats and requires `nodes/proxy` access; it does
 not require metrics-server. Without usage access, declared budgets and sizes
 remain visible with a warning. Actual availability depends on kubelet/runtime
 storage accounting; krm does not estimate usage from PVC size or requests.

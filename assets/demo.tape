@@ -78,7 +78,13 @@ Type "krm storage --demo -n prod"
 Enter
 Sleep 3s
 Type "E"
-Sleep 3s
+Sleep 2s
+Type "s"
+Sleep 2s
+Type "s"
+Sleep 2s
+Type "s"
+Sleep 2s
 Type "Q"
 Sleep 500ms
 Type "krm storage top --type pvc --demo -n prod"

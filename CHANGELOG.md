@@ -5,7 +5,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.0] - Work in progress
+## [1.2.1] - Work in progress
+
+### Changed
+
+- Replaced storage letter markers with two percentage bars: used/request and
+  used/limit or PVC capacity. Missing bounds show n/a tracks rather than a full
+  bar; missing usage shows unknown.
+
+### Fixed
+
+- Storage defaults to use% descending and cycles only use%, kind, request, and
+  used sorts. Unknown values stay last in either direction. CPU/memory sorts
+  are rejected for storage.
+
+## [1.2.0] - 2026-10-05
 
 ### Added
 

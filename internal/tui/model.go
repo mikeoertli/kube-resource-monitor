@@ -421,13 +421,17 @@ func adjustInterval(cur time.Duration, dir int) time.Duration {
 
 func (m *Model) cycleSort() {
 	cur := m.cfg.Sort
-	for i, k := range model.AllSortKeys {
+	choices := model.AllSortKeys
+	if m.cfg.Render.Storage {
+		choices = model.StorageSortKeys
+	}
+	for i, k := range choices {
 		if k == cur {
-			m.cfg.Sort = model.AllSortKeys[(i+1)%len(model.AllSortKeys)]
+			m.cfg.Sort = choices[(i+1)%len(choices)]
 			return
 		}
 	}
-	m.cfg.Sort = model.AllSortKeys[0]
+	m.cfg.Sort = choices[0]
 }
 
 func (m *Model) cycleGroup() {
@@ -446,6 +450,7 @@ func (m *Model) cycleGroup() {
 // afterGroupChange adjusts the columns that only make sense for some groupings.
 func (m *Model) afterGroupChange() {
 	g := m.cfg.Options.GroupBy
+	wasStorage := m.cfg.Render.Storage
 	m.cfg.Render.Storage = g == inventory.GroupPVC || g == inventory.GroupVolume || g == inventory.GroupStorage
 	m.cfg.Render.CombinedStorage = g == inventory.GroupStorage && (m.cfg.Options.StorageType == inventory.StorageAll || m.cfg.Options.StorageType == "")
 	m.cfg.Render.ShowNode = g == inventory.GroupPod || g == inventory.GroupContainer
@@ -453,8 +458,15 @@ func (m *Model) afterGroupChange() {
 		m.cfg.Options.IncludeContainers = true
 	}
 	// Sorting by CPU in a volume view would leave every row at zero.
-	if m.cfg.Render.Storage && (m.cfg.Sort == model.SortCPU || m.cfg.Sort == model.SortMemory) {
-		m.cfg.Sort = model.SortStorage
+	if m.cfg.Render.Storage {
+		if !wasStorage || !model.IsStorageSortKey(m.cfg.Sort) {
+			m.cfg.Sort = model.SortStoragePercent
+		}
+		if m.cfg.Sort == model.SortStorage {
+			m.cfg.Sort = model.SortStorageUsed
+		}
+	} else if m.cfg.Sort == model.SortStoragePercent || m.cfg.Sort == model.SortStorageRequest || m.cfg.Sort == model.SortStorageUsed {
+		m.cfg.Sort = model.SortCPU
 	}
 	m.expanded = map[string]bool{}
 	m.cursor = 0

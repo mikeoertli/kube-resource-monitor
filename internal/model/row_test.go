@@ -328,3 +328,31 @@ func TestRollupPreservesCapacityPreference(t *testing.T) {
 		t.Errorf("got %v/%v/%v, want 0.25/capacity/true", f, basis, ok)
 	}
 }
+
+func TestStorageSortMetricsAndUnknowns(t *testing.T) {
+	a := &Row{Kind: KindEphemeral, Name: "small", Usage: Usage{Used: Amounts{StorageBytes: 90}, Requests: Amounts{StorageBytes: 100}, Limits: Amounts{StorageBytes: 100}, HasStorageRequest: true, HasStorageLimit: true}}
+	b := &Row{Kind: KindPVC, Name: "large", Usage: Usage{Used: Amounts{StorageBytes: 500}, Requests: Amounts{StorageBytes: 1000}, Capacity: Amounts{StorageBytes: 1000}, HasStorageRequest: true, PreferCapacity: true}}
+	c := &Row{Kind: KindEphemeral, Name: "no-bound", Usage: Usage{Used: Amounts{StorageBytes: 999}, Requests: Amounts{StorageBytes: 10}, HasStorageRequest: true}}
+	missing := &Row{Kind: KindPVC, Name: "missing", MetricsMissing: true, Usage: Usage{Capacity: Amounts{StorageBytes: 100}}}
+	rows := []*Row{missing, c, b, a}
+	Sort(rows, SortStoragePercent, true)
+	if rows[0] != a || rows[1] != b {
+		t.Fatal("use% sorted by bytes or request instead of the bound")
+	}
+	Sort(rows, SortStoragePercent, false)
+	if rows[0] != b || rows[1] != a {
+		t.Fatal("unknown percentages should remain last when reversed")
+	}
+	Sort(rows, SortStorageUsed, true)
+	if rows[0] != c || rows[1] != b || rows[3] != missing {
+		t.Fatal("used-byte ordering or unknown handling wrong")
+	}
+	Sort(rows, SortStorageRequest, true)
+	if rows[0] != b || rows[1] != a || rows[3] != missing {
+		t.Fatal("request ordering or absent request handling wrong")
+	}
+	Sort(rows, SortKind, false)
+	if rows[0].Kind != KindEphemeral || rows[3].Kind != KindPVC {
+		t.Fatal("kind ordering is not alphabetical")
+	}
+}

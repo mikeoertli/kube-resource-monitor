@@ -357,7 +357,7 @@ func TestSwitchingToStorageViewFixesSort(t *testing.T) {
 	if m.cfg.Options.GroupBy != inventory.GroupStorage {
 		t.Fatal("never reached the storage view")
 	}
-	if m.cfg.Sort != model.SortStorage {
+	if m.cfg.Sort != model.SortStoragePercent {
 		t.Errorf("sort = %q, want storage in the storage view", m.cfg.Sort)
 	}
 	if !m.cfg.Render.Storage {
@@ -559,5 +559,29 @@ func TestStorageTypeIsVisibleAndControlsTotals(t *testing.T) {
 		if group == inventory.GroupPVC || group == inventory.GroupVolume {
 			t.Fatal("separate storage grouping remains visible")
 		}
+	}
+}
+
+func TestStorageSortCycleStaysOnVisibleMetrics(t *testing.T) {
+	m := newTestModel(t, &stubCollector{snap: testSnapshot()})
+	m.cfg.Options.GroupBy = inventory.GroupStorage
+	for _, old := range []model.SortKey{model.SortCPU, model.SortMemory, model.SortCPUPercent, model.SortMemPercent, model.SortRestarts, model.SortName, model.SortKind} {
+		m.cfg.Sort = old
+		m.cfg.Render.Storage = false
+		m.afterGroupChange()
+		if m.cfg.Sort != model.SortStoragePercent {
+			t.Fatalf("hidden metric survived: %s", m.cfg.Sort)
+		}
+	}
+	for i := 0; i < 8; i++ {
+		if want := model.StorageSortKeys[i%4]; m.cfg.Sort != want {
+			t.Fatalf("cycle %d: got %s want %s", i, m.cfg.Sort, want)
+		}
+		m.cycleSort()
+	}
+	m.cfg.Options.GroupBy = inventory.GroupWorkload
+	m.afterGroupChange()
+	if m.cfg.Sort != model.SortCPU {
+		t.Fatal("storage percentage leaked into workload view")
 	}
 }

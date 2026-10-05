@@ -90,10 +90,7 @@ func (t *Table) columns() []column {
 	}
 
 	if t.Opts.Storage {
-		cols = append(cols, column{"REQUEST", alignRight}, column{"USED", alignRight}, column{"LIMIT/SIZE", alignRight}, column{"USE%", alignRight})
-		if t.Opts.ShowBars {
-			cols = append(cols, column{"STORAGE", alignLeft})
-		}
+		cols = append(cols, column{"REQUEST", alignRight}, column{"USED", alignRight}, column{"LIMIT/SIZE", alignRight}, column{"REQ%", alignLeft}, column{"USE%", alignLeft})
 	} else {
 		cols = append(cols, column{"CPU", alignRight})
 		if t.Opts.ShowRequests {
@@ -183,7 +180,7 @@ func (t *Table) rowCells(fr model.FlatRow) []cell {
 		if r.MetricsMissing {
 			out = append(out, dash)
 		} else {
-			f, ok := storageFraction(r.Usage)
+			f, ok := r.Usage.StorageBoundFraction()
 			out = append(out, cell{model.FormatBytes(r.Usage.Used.StorageBytes), p.Fraction(t.Opts.Thresholds, f, ok)})
 		}
 		bound := "-"
@@ -193,14 +190,18 @@ func (t *Table) rowCells(fr model.FlatRow) []cell {
 			bound = model.FormatBytes(r.Usage.Capacity.StorageBytes)
 		}
 		out = append(out, cell{bound, p.Muted})
-		f, ok := storageFraction(r.Usage)
-		if r.MetricsMissing {
-			ok = false
+		width := t.Opts.BarWidth
+		if width > 8 {
+			width = 8
 		}
-		out = append(out, cell{model.FormatPercent(f, ok), p.Fraction(t.Opts.Thresholds, f, ok)})
-		if t.Opts.ShowBars {
-			out = append(out, cell{StorageBar(r.Usage, !r.MetricsMissing, t.Opts.BarWidth, t.Opts.BarStyle), p.Fraction(t.Opts.Thresholds, f, ok)})
+		_, requestOK := r.Usage.Fraction(model.MetricStorage, model.BasisRequest)
+		requestStyle := p.Accent
+		if !requestOK || r.MetricsMissing {
+			requestStyle = p.Muted
 		}
+		boundFraction, boundOK := r.Usage.StorageBoundFraction()
+		boundStyle := p.Fraction(t.Opts.Thresholds, boundFraction, boundOK && !r.MetricsMissing)
+		out = append(out, cell{StorageComparison(r.Usage, !r.MetricsMissing, true, width, t.Opts.BarStyle, t.Opts.ShowBars), requestStyle}, cell{StorageComparison(r.Usage, !r.MetricsMissing, false, width, t.Opts.BarStyle, t.Opts.ShowBars), boundStyle})
 	} else {
 		for _, m := range []model.Metric{model.MetricCPU, model.MetricMemory} {
 			f, ok := t.fractionFor(r.Usage, m)
@@ -344,7 +345,7 @@ func (t *Table) TotalsLine(u model.Usage, rowCount int) string {
 		return strings.Join(parts, "  ")
 	}
 	if t.Opts.Storage {
-		f, ok := storageFraction(u)
+		f, ok := u.StorageBoundFraction()
 		ok = ok && u.UsedKnown
 		used := "-"
 		if u.UsedKnown {
@@ -381,7 +382,7 @@ func (t *Table) TotalsLine(u model.Usage, rowCount int) string {
 // Legend explains the color bands, so the scale is discoverable without docs.
 func (t *Table) Legend() string {
 	if t.Opts.Storage {
-		return t.Palette.Label.Render("R request · U usage · L limit · C capacity · * overlapping markers")
+		return t.Palette.Label.Render("REQ% used/request · USE% used/limit or PVC capacity · n/a no comparison · unknown no sample")
 	}
 	p := t.Palette
 	th := t.Opts.Thresholds
@@ -448,10 +449,6 @@ func itoa(i int) string {
 	return string(buf[pos:])
 }
 
-func storageFraction(u model.Usage) (float64, bool) {
-	f, _, ok := u.BestFraction(model.MetricStorage)
-	return f, ok
-}
 func storageDeclared(u model.Usage, basis model.Basis) string {
 	if basis == model.BasisRequest && u.HasStorageRequest {
 		return model.FormatBytes(u.Requests.StorageBytes)

@@ -451,3 +451,63 @@ func TestCSVRequiresDirectory(t *testing.T) {
 		}
 	}
 }
+
+func TestNodeCommands(t *testing.T) {
+	for _, args := range [][]string{{"node"}, {"nodes"}, {"node", "top"}} {
+		out, err := run(t, args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"worker-1", "worker-2", "worker-3", "monitoring", "node-exporter", "TOTAL"} {
+			if !strings.Contains(out, want) {
+				t.Fatalf("%v missing %q: %s", args, want, out)
+			}
+		}
+	}
+}
+
+func TestNodeJSONFilterAndCSV(t *testing.T) {
+	dir := t.TempDir()
+	out, err := run(t, "node", "top", "-f", "^worker-1$", "-o", "json", "--csv", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		GroupBy string `json:"groupBy"`
+		Rows    []struct {
+			Kind, Name string
+			CPUMilli   int64 `json:"cpuMilli"`
+			Children   []struct{ Namespace string }
+		}
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc.GroupBy != "node" || len(doc.Rows) != 1 || doc.Rows[0].Kind != "Node" || doc.Rows[0].Name != "worker-1" || doc.Rows[0].CPUMilli <= 0 {
+		t.Fatalf("bad node export: %s", out)
+	}
+	namespaces := map[string]bool{}
+	for _, child := range doc.Rows[0].Children {
+		namespaces[child.Namespace] = true
+	}
+	if !namespaces["monitoring"] || !namespaces["prod"] {
+		t.Fatalf("node pods do not cover all namespaces: %s", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "__node__worker-1.csv")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNodeRejectsConflictingFlags(t *testing.T) {
+	for _, args := range [][]string{{"node", "-n", "prod"}, {"node", "top", "-g", "pod"}, {"node", "--group-by", "invalid"}, {"node", "unexpected"}} {
+		if _, err := run(t, args...); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
+	}
+	if _, err := run(t, "node", "top", "-g", "nodes"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(t, "node", "watch", "-o", "json"); err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("bad watch error: %v", err)
+	}
+}

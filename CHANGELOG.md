@@ -5,7 +5,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - Work in progress
+## [1.1.0] - Work in progress
+
+### Added
+
+- `krm node` (alias `nodes`) opens node CPU/memory monitoring, with `node top`
+  and `node watch` for explicit modes. Uses allocatable capacity, covers all
+  namespaces, and supports filtering and machine-readable/CSV export.
+
+## [1.0.0] - 2026-10-05
 
 ### Added
 

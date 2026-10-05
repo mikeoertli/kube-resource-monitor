@@ -62,9 +62,13 @@ Enter
 Sleep 300ms
 Show
 # Node capacity, then volume capacity and usage.
-Type "krm top --demo -g node --limits"
+Type "krm node --demo -i 2s"
 Enter
 Sleep 4s
+Type "E"
+Sleep 2s
+Type "Q"
+Sleep 500ms
 Type "krm top --demo -n prod -g pvc"
 Enter
 Sleep 4s

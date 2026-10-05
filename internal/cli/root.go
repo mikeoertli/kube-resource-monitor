@@ -25,6 +25,7 @@ MODES
   krm          one table, then exit                    (piped or redirected)
   krm top      one table, then exit                    (always)
   krm watch    live view                               (always)
+  krm node     node usage and capacity, live on a terminal
   krm notify   watch thresholds, send notifications
 
 So "krm" on its own opens the interactive view, while "krm | grep web" and
@@ -90,14 +91,33 @@ func newRootCommand() *cobra.Command {
 		Example: rootExamples,
 
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			for parent := cmd; parent != nil; parent = parent.Parent() {
+				if parent.Name() == "node" {
+					if cmd.Flags().Changed("namespace") {
+						return fmt.Errorf("nodes are cluster-scoped; --namespace is not supported by krm node")
+					}
+					if cmd.Flags().Changed("group-by") {
+						group, err := inventory.ParseGroupBy(f.groupBy)
+						if err != nil {
+							return err
+						}
+						if group != inventory.GroupNode {
+							return fmt.Errorf("krm node requires --group-by node; use krm for other groupings")
+						}
+					}
+					f.groupBy = "node"
+					f.allNamespaces = true
+					break
+				}
+			}
 			if cmd.Flags().Changed("csv") {
 				if f.csvDir == "" {
 					return fmt.Errorf("--csv requires a non-empty output directory")
 				}
 				switch cmd.Name() {
-				case "krm", "top", "watch", "notify":
+				case "krm", "top", "watch", "notify", "node":
 				default:
-					return fmt.Errorf("--csv is only supported by krm, top, watch, and notify")
+					return fmt.Errorf("--csv is only supported by krm, node, top, watch, and notify")
 				}
 			}
 			return nil
@@ -121,6 +141,7 @@ func newRootCommand() *cobra.Command {
 
 	root.AddCommand(
 		newTopCommand(f),
+		newNodeCommand(f),
 		newWatchCommand(f),
 		newNotifyCommand(f),
 		newInstallCommand(f),
@@ -128,6 +149,44 @@ func newRootCommand() *cobra.Command {
 		newVersionCommand(f),
 	)
 	return root
+}
+
+// newNodeCommand provides the node view with the same automatic mode as krm.
+func newNodeCommand(f *globalFlags) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "node",
+		Aliases: []string{"nodes"},
+		Short:   "Monitor node CPU and memory usage against allocatable capacity",
+		Long: `Monitor nodes across the cluster, including nodes with no pods.
+
+Usage comes from node metrics and includes system processes. Percentages are
+measured against each node's allocatable CPU and memory. Expand nodes to see
+pods, and use --containers to drill down further. If node metrics are unavailable,
+krm warns and falls back to summed pod usage.
+
+On a terminal, open the live view. When piped or using -o json, -o csv, or
+-o prometheus, print one snapshot. Use "krm node top" for an explicit snapshot
+and "krm node watch" for an explicit live view. Nodes are cluster-scoped;
+pod breakdowns cover all namespaces. --filter matches node names.`,
+		Example: `  krm node
+  krm node top --requests
+  krm node watch --containers -i 10s
+  krm node -f worker-1 -o json
+  krm node --csv ./node-samples`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if isTerminal() && f.output == "table" {
+				return runWatch(cmd, f)
+			}
+			return runOnce(cmd, f)
+		},
+	}
+	top := newTopCommand(f)
+	top.Long = "Print one snapshot of node CPU and memory usage and exit. Supports -o json, -o csv, and -o prometheus."
+	watch := newWatchCommand(f)
+	watch.Long = "Monitor node CPU and memory usage in the interactive view. Press ? for controls and Q to quit."
+	cmd.AddCommand(top, watch)
+	return cmd
 }
 
 func newTopCommand(f *globalFlags) *cobra.Command {

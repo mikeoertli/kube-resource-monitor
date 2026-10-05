@@ -74,6 +74,9 @@ anything you care about.
 | `krm` | One table, then exit — when piped or redirected |
 | `krm top` | One table, then exit — always |
 | `krm watch` | Live view — always |
+| `krm node` | Node usage and allocatable capacity; live on a terminal, snapshot when piped |
+| `krm node top` | One node snapshot, then exit |
+| `krm node watch` | Live node view |
 | `krm notify` | Watch thresholds and send notifications |
 
 Bare `krm` reads its environment the same way `git log` decides whether to
@@ -107,6 +110,22 @@ krm -g deployment    # only Deployments (also: statefulset, daemonset, job)
 ```
 
 Kubectl abbreviations work: `-g deploy`, `-g sts`, `-g ds`, `-g po`.
+
+### Nodes
+
+```sh
+krm node                              # live node CPU and memory monitoring
+krm node top                          # one node snapshot
+krm node watch -i 10s --containers     # live view with pod/container drilldown
+krm node -f worker-1 -o json           # filter node names and export a snapshot
+krm node --csv ./node-samples          # record timestamped samples while watching
+```
+
+Node percentages use allocatable CPU and memory. Node metrics include system
+processes; if unavailable, krm warns and falls back to summed pod usage. Pods
+are collected across all namespaces, and idle nodes are included. Nodes are
+cluster-scoped, so `krm node` rejects `--namespace`. `krm nodes` is an alias;
+`krm -g node` continues to work.
 
 ### Filtering
 
@@ -253,7 +272,7 @@ window, so you do not chase a spike that has already passed.
 
 ## Permissions
 
-Ordinary read access to pods, workloads, and `metrics.k8s.io` covers everything
+Ordinary read access to pods, workloads, nodes, and `metrics.k8s.io` covers everything
 except volume usage, which comes from each kubelet's summary endpoint and needs
 `nodes/proxy`. Without it, `-g pvc` still lists every claim and its provisioned
 size and says why usage is unavailable, rather than failing.

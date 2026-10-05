@@ -31,6 +31,8 @@ const (
 	GroupContainer   GroupBy = "container"
 	GroupNode        GroupBy = "node"
 	GroupNamespace   GroupBy = "namespace"
+	GroupStorage     GroupBy = "storage"
+	GroupVolume      GroupBy = "volume"
 	GroupPVC         GroupBy = "pvc"
 	GroupDeployment  GroupBy = "deployment"
 	GroupStatefulSet GroupBy = "statefulset"
@@ -41,12 +43,12 @@ const (
 )
 
 // AllGroupBy is the cycle order used by the TUI's group toggle.
-var AllGroupBy = []GroupBy{GroupWorkload, GroupPod, GroupContainer, GroupNode, GroupNamespace, GroupPVC}
+var AllGroupBy = []GroupBy{GroupWorkload, GroupPod, GroupContainer, GroupNode, GroupNamespace, GroupStorage}
 
 // ParseGroupBy validates a --group-by value.
 func ParseGroupBy(s string) (GroupBy, error) {
 	switch g := GroupBy(strings.ToLower(strings.TrimSpace(s))); g {
-	case GroupWorkload, GroupPod, GroupContainer, GroupNode, GroupNamespace, GroupPVC,
+	case GroupWorkload, GroupPod, GroupContainer, GroupNode, GroupNamespace, GroupPVC, GroupVolume, GroupStorage,
 		GroupDeployment, GroupStatefulSet, GroupDaemonSet, GroupReplicaSet, GroupJob, GroupCronJob:
 		return g, nil
 	case "":
@@ -68,10 +70,12 @@ func ParseGroupBy(s string) (GroupBy, error) {
 		return GroupNode, nil
 	case "ns", "namespaces":
 		return GroupNamespace, nil
-	case "pvcs", "volume", "volumes":
+	case "volumes", "ephemeral":
+		return GroupVolume, nil
+	case "pvcs":
 		return GroupPVC, nil
 	default:
-		return "", fmt.Errorf("unknown group-by %q (try: workload, pod, container, node, namespace, pvc, deployment, statefulset, daemonset, job)", s)
+		return "", fmt.Errorf("unknown group-by %q (try: workload, pod, container, node, namespace, pvc, volume, storage, deployment, statefulset, daemonset, job)", s)
 	}
 }
 
@@ -106,7 +110,8 @@ type Options struct {
 	// FieldSelector is passed through to the pod list ("spec.nodeName=n1").
 	FieldSelector string
 
-	GroupBy GroupBy
+	GroupBy     GroupBy
+	StorageType StorageType
 	// IncludeContainers attaches per-container children to pod rows.
 	IncludeContainers bool
 	// IncludeMissing keeps pods the metrics API had no sample for.
@@ -151,6 +156,12 @@ func (c *Collector) Collect(ctx context.Context, opts Options) (*Snapshot, error
 	}
 	snap := &Snapshot{Taken: time.Now(), GroupBy: opts.GroupBy}
 
+	if opts.GroupBy == GroupStorage {
+		return c.collectStorage(ctx, opts, snap)
+	}
+	if opts.GroupBy == GroupVolume {
+		return c.collectEphemeral(ctx, opts, snap)
+	}
 	if opts.GroupBy == GroupPVC {
 		return c.collectPVC(ctx, opts, snap)
 	}

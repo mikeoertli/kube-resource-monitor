@@ -5,7 +5,27 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - Work in progress
+## [1.2.0] - Work in progress
+
+### Added
+
+- `krm storage` combines ephemeral pod budgets, disk-backed `emptyDir` volumes,
+  and PVCs in one view, distinguished by KIND. `--type ephemeral` and `--type pvc`
+  filter the same view; all types appear by default. Uses one shared kubelet
+  scrape per refresh, defaults to one-minute refreshes, and supports top, watch,
+  filtering, notifications via grouping, and exports.
+- Storage bars place request, usage and limit/capacity markers on one scale.
+- Storage request/limit fields in JSON, CSV and Prometheus exports. CSV appends
+  reject older column layouts instead of mixing schemas.
+
+### Changed
+
+- Storage has one command and TUI grouping. Existing `-g volume` and `-g pvc`
+  shorthands select the corresponding storage type for compatibility.
+- Storage views use kubelet summaries independently of metrics-server. Missing
+  and partially unavailable samples remain explicit.
+
+## [1.1.0] - 2026-10-05
 
 ### Added
 

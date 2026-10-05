@@ -40,6 +40,9 @@ func (c *Collector) collectPVC(ctx context.Context, opts Options, snap *Snapshot
 				"volume usage unavailable ("+err.Error()+"); showing provisioned capacity only")
 		}
 		for _, s := range samples {
+			if s.ClaimName == "" {
+				continue
+			}
 			// A claim mounted by several pods is reported once per pod; the
 			// numbers describe the same filesystem, so last write wins rather
 			// than summing (which would multiply usage by the mount count).
@@ -75,6 +78,7 @@ func (c *Collector) collectPVC(ctx context.Context, opts Options, snap *Snapshot
 		}
 		if q, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]; ok {
 			row.Usage.Requests.StorageBytes = q.Value()
+			row.Usage.HasStorageRequest = true
 		}
 
 		if s, ok := usage[pvc.Namespace+"/"+pvc.Name]; ok {

@@ -21,6 +21,8 @@ type Options struct {
 	ShowLabels    bool
 	// Storage swaps the CPU/memory columns for storage ones, for volume views.
 	Storage bool
+	// CombinedStorage avoids an aggregate percentage across unrelated bounds.
+	CombinedStorage bool
 
 	BarWidth   int
 	BarStyle   BarStyle
@@ -88,7 +90,7 @@ func (t *Table) columns() []column {
 	}
 
 	if t.Opts.Storage {
-		cols = append(cols, column{"USED", alignRight}, column{"SIZE", alignRight}, column{"USE%", alignRight})
+		cols = append(cols, column{"REQUEST", alignRight}, column{"USED", alignRight}, column{"LIMIT/SIZE", alignRight}, column{"USE%", alignRight})
 		if t.Opts.ShowBars {
 			cols = append(cols, column{"STORAGE", alignLeft})
 		}
@@ -173,20 +175,31 @@ func (t *Table) rowCells(fr model.FlatRow) []cell {
 	dash := cell{"-", p.Muted}
 
 	if t.Opts.Storage {
+		request := "-"
+		if r.Usage.HasStorageRequest {
+			request = model.FormatBytes(r.Usage.Requests.StorageBytes)
+		}
+		out = append(out, cell{request, p.Muted})
 		if r.MetricsMissing {
 			out = append(out, dash)
 		} else {
-			f, ok := r.Usage.StorageOfCapacity()
+			f, ok := storageFraction(r.Usage)
 			out = append(out, cell{model.FormatBytes(r.Usage.Used.StorageBytes), p.Fraction(t.Opts.Thresholds, f, ok)})
 		}
-		out = append(out, cell{model.FormatBytes(r.Usage.Capacity.StorageBytes), p.Muted})
-		f, ok := r.Usage.StorageOfCapacity()
+		bound := "-"
+		if r.Usage.HasStorageLimit {
+			bound = model.FormatBytes(r.Usage.Limits.StorageBytes)
+		} else if r.Usage.Capacity.StorageBytes > 0 {
+			bound = model.FormatBytes(r.Usage.Capacity.StorageBytes)
+		}
+		out = append(out, cell{bound, p.Muted})
+		f, ok := storageFraction(r.Usage)
 		if r.MetricsMissing {
 			ok = false
 		}
 		out = append(out, cell{model.FormatPercent(f, ok), p.Fraction(t.Opts.Thresholds, f, ok)})
 		if t.Opts.ShowBars {
-			out = append(out, cell{Bar(f, ok, t.Opts.BarWidth, t.Opts.BarStyle), p.Fraction(t.Opts.Thresholds, f, ok)})
+			out = append(out, cell{StorageBar(r.Usage, !r.MetricsMissing, t.Opts.BarWidth, t.Opts.BarStyle), p.Fraction(t.Opts.Thresholds, f, ok)})
 		}
 	} else {
 		for _, m := range []model.Metric{model.MetricCPU, model.MetricMemory} {
@@ -322,11 +335,25 @@ func (t *Table) Render(flat []model.FlatRow) string {
 func (t *Table) TotalsLine(u model.Usage, rowCount int) string {
 	p := t.Palette
 	parts := []string{p.Label.Render("TOTAL"), p.Muted.Render("(" + itoa(rowCount) + " rows)")}
+	if t.Opts.CombinedStorage {
+		used := "-"
+		if u.UsedKnown {
+			used = model.FormatBytes(u.Used.StorageBytes)
+		}
+		parts = append(parts, p.Value.Render(used+" used"), p.Muted.Render("request "+storageDeclared(u, model.BasisRequest)))
+		return strings.Join(parts, "  ")
+	}
 	if t.Opts.Storage {
-		f, ok := u.StorageOfCapacity()
+		f, ok := storageFraction(u)
+		ok = ok && u.UsedKnown
+		used := "-"
+		if u.UsedKnown {
+			used = model.FormatBytes(u.Used.StorageBytes)
+		}
 		parts = append(parts,
-			p.Value.Render(model.FormatBytes(u.Used.StorageBytes)+" used"),
-			p.Muted.Render("of "+model.FormatBytes(u.Capacity.StorageBytes)),
+			p.Value.Render(used+" used"),
+			p.Muted.Render("request "+storageDeclared(u, model.BasisRequest)),
+			p.Muted.Render("limit/size "+storageDeclared(u, model.BasisLimit)),
 			p.Fraction(t.Opts.Thresholds, f, ok).Render(model.FormatPercent(f, ok)),
 		)
 	} else {
@@ -353,6 +380,9 @@ func (t *Table) TotalsLine(u model.Usage, rowCount int) string {
 
 // Legend explains the color bands, so the scale is discoverable without docs.
 func (t *Table) Legend() string {
+	if t.Opts.Storage {
+		return t.Palette.Label.Render("R request · U usage · L limit · C capacity · * overlapping markers")
+	}
 	p := t.Palette
 	th := t.Opts.Thresholds
 	segs := []struct {
@@ -416,4 +446,23 @@ func itoa(i int) string {
 		buf[pos] = '-'
 	}
 	return string(buf[pos:])
+}
+
+func storageFraction(u model.Usage) (float64, bool) {
+	f, _, ok := u.BestFraction(model.MetricStorage)
+	return f, ok
+}
+func storageDeclared(u model.Usage, basis model.Basis) string {
+	if basis == model.BasisRequest && u.HasStorageRequest {
+		return model.FormatBytes(u.Requests.StorageBytes)
+	}
+	if basis == model.BasisLimit {
+		if u.HasStorageLimit {
+			return model.FormatBytes(u.Limits.StorageBytes)
+		}
+		if u.Capacity.StorageBytes > 0 {
+			return model.FormatBytes(u.Capacity.StorageBytes)
+		}
+	}
+	return "-"
 }

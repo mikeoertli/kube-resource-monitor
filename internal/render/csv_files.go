@@ -1,6 +1,7 @@
 package render
 
 import (
+	"encoding/csv"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -59,11 +60,18 @@ func csvFilePart(s string) string {
 }
 
 func appendResourceSample(path string, taken time.Time, row *model.Row) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	if err != nil {
 		return err
 	}
 	info, err := f.Stat()
+	if err == nil && info.Size() > 0 {
+		var header []string
+		header, err = csv.NewReader(f).Read()
+		if err == nil && strings.Join(header, ",") != strings.Join(csvColumns(), ",") {
+			err = fmt.Errorf("CSV columns differ; use a new output directory for this version")
+		}
+	}
 	if err == nil {
 		r := *row
 		r.Children = nil

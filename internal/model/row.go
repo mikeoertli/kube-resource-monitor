@@ -20,6 +20,8 @@ const (
 	KindCronJob     Kind = "CronJob"
 	KindNode        Kind = "Node"
 	KindNamespace   Kind = "Namespace"
+	KindEphemeral   Kind = "EphemeralStorage"
+	KindVolume      Kind = "EmptyDir"
 	KindPVC         Kind = "PersistentVolumeClaim"
 	// KindStandalone covers pods with no controlling owner, so they still get a
 	// home when the view groups by workload.
@@ -49,6 +51,10 @@ func (k Kind) Short() string {
 		return "node"
 	case KindNamespace:
 		return "ns"
+	case KindEphemeral:
+		return "ephemeral"
+	case KindVolume:
+		return "emptydir"
 	case KindPVC:
 		return "pvc"
 	case KindStandalone:

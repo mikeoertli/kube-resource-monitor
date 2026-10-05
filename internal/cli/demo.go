@@ -165,6 +165,14 @@ func demoCluster() (*fake.Clientset, *metrics.Mock) {
 		pvc("prod", "uploads", "50Gi"),
 	)
 
+	// Include disk budgets and a constrained emptyDir.
+	for _, object := range objs {
+		if pod, ok := object.(*corev1.Pod); ok && pod.Namespace == "prod" && pod.Labels["app"] == "storefront" {
+			pod.Spec.Containers[0].Resources.Requests[corev1.ResourceEphemeralStorage] = q("1Gi")
+			pod.Spec.Containers[0].Resources.Limits[corev1.ResourceEphemeralStorage] = q("4Gi")
+			pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{Name: "cache", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{SizeLimit: quantityPtr(q("2Gi"))}}})
+		}
+	}
 	kc := fake.NewSimpleClientset(toRuntimeObjects(objs)...)
 
 	mb := func(n int64) int64 { return n << 20 }
@@ -207,6 +215,10 @@ func demoCluster() (*fake.Clientset, *metrics.Mock) {
 		{Namespace: "prod", ClaimName: "uploads", UsedBytes: gb(12), CapacityBytes: gb(50)},
 	}
 
+	for _, suffix := range []string{"h4k2n", "p8w3d", "z1x9c"} {
+		name := "storefront-7c9d-" + suffix
+		volumes = append(volumes, metrics.VolumeSample{Namespace: "prod", PodName: name, UsedBytes: gb(3)}, metrics.VolumeSample{Namespace: "prod", PodName: name, VolumeName: "cache", UsedBytes: gb(1)})
+	}
 	return kc, metrics.NewMock(mockPods, mockNodes, volumes)
 }
 
@@ -223,3 +235,5 @@ func itoa(i int) string {
 	}
 	return string(b)
 }
+
+func quantityPtr(q resource.Quantity) *resource.Quantity { return &q }

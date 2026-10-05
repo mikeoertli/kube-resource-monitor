@@ -69,10 +69,12 @@ type Usage struct {
 	// the denominator for nodes and volumes the way Limits is for containers.
 	Capacity Amounts `json:"capacity,omitempty"`
 
-	HasCPURequest bool `json:"-"`
-	HasMemRequest bool `json:"-"`
-	HasCPULimit   bool `json:"-"`
-	HasMemLimit   bool `json:"-"`
+	HasCPURequest     bool `json:"-"`
+	HasMemRequest     bool `json:"-"`
+	HasCPULimit       bool `json:"-"`
+	HasStorageRequest bool `json:"-"`
+	HasStorageLimit   bool `json:"-"`
+	HasMemLimit       bool `json:"-"`
 	// UsedKnown is false when metrics were unavailable for this row, which is
 	// different from a genuinely idle workload reporting zero.
 	UsedKnown bool `json:"-"`
@@ -95,16 +97,18 @@ type Usage struct {
 // it clarifies.
 func (u Usage) Add(b Usage) Usage {
 	return Usage{
-		Used:           u.Used.Add(b.Used),
-		Requests:       u.Requests.Add(b.Requests),
-		Limits:         u.Limits.Add(b.Limits),
-		Capacity:       u.Capacity.Add(b.Capacity),
-		HasCPURequest:  u.HasCPURequest || b.HasCPURequest,
-		HasMemRequest:  u.HasMemRequest || b.HasMemRequest,
-		HasCPULimit:    u.HasCPULimit || b.HasCPULimit,
-		HasMemLimit:    u.HasMemLimit || b.HasMemLimit,
-		UsedKnown:      u.UsedKnown || b.UsedKnown,
-		PreferCapacity: u.PreferCapacity || b.PreferCapacity,
+		Used:              u.Used.Add(b.Used),
+		Requests:          u.Requests.Add(b.Requests),
+		Limits:            u.Limits.Add(b.Limits),
+		Capacity:          u.Capacity.Add(b.Capacity),
+		HasCPURequest:     u.HasCPURequest || b.HasCPURequest,
+		HasMemRequest:     u.HasMemRequest || b.HasMemRequest,
+		HasCPULimit:       u.HasCPULimit || b.HasCPULimit,
+		HasMemLimit:       u.HasMemLimit || b.HasMemLimit,
+		HasStorageRequest: u.HasStorageRequest || b.HasStorageRequest,
+		HasStorageLimit:   u.HasStorageLimit || b.HasStorageLimit,
+		UsedKnown:         u.UsedKnown || b.UsedKnown,
+		PreferCapacity:    u.PreferCapacity || b.PreferCapacity,
 	}
 }
 
@@ -194,6 +198,16 @@ func (u Usage) Fraction(m Metric, b Basis) (float64, bool) {
 		return u.MemOfRequest()
 	case m == MetricMemory && b == BasisCapacity:
 		return u.MemOfCapacity()
+	case m == MetricStorage && b == BasisLimit:
+		if u.HasStorageLimit {
+			return ratio(u.Used.StorageBytes, u.Limits.StorageBytes)
+		}
+		return 0, false
+	case m == MetricStorage && b == BasisRequest:
+		if u.HasStorageRequest {
+			return ratio(u.Used.StorageBytes, u.Requests.StorageBytes)
+		}
+		return 0, false
 	case m == MetricStorage && b == BasisCapacity:
 		return u.StorageOfCapacity()
 	}

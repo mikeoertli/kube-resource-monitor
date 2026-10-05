@@ -296,3 +296,36 @@ func TestParseFormat(t *testing.T) {
 		t.Error("expected an error for an unsupported format")
 	}
 }
+
+func TestStorageBarCommonScale(t *testing.T) {
+	u := model.Usage{Used: model.Amounts{StorageBytes: 60}, Requests: model.Amounts{StorageBytes: 20}, Limits: model.Amounts{StorageBytes: 100}, HasStorageRequest: true, HasStorageLimit: true, UsedKnown: true}
+	got := StorageBar(u, true, 11, BarASCII)
+	if got[2] != 'R' || got[6] != 'U' || got[10] != 'L' {
+		t.Fatalf("wrong markers: %s", got)
+	}
+	if got := StorageBar(u, false, 11, BarASCII); strings.Contains(got, "U") {
+		t.Fatal("unknown usage marker")
+	}
+	u.Used.StorageBytes = 200
+	got = StorageBar(u, true, 11, BarASCII)
+	if got[5] != 'L' || got[10] != 'U' {
+		t.Fatalf("over-limit usage hidden: %s", got)
+	}
+	u.Requests.StorageBytes = 100
+	u.Used.StorageBytes = 100
+	if !strings.Contains(StorageBar(u, true, 11, BarASCII), "*") {
+		t.Fatal("coincident markers not identified")
+	}
+}
+
+func TestCombinedStorageFooterAvoidsMixedPercentage(t *testing.T) {
+	options := DefaultOptions()
+	options.Storage = true
+	options.CombinedStorage = true
+	table := NewTable(NewPalette(false), options)
+	usage := model.Usage{Used: model.Amounts{StorageBytes: 123}, Requests: model.Amounts{StorageBytes: 200}, Limits: model.Amounts{StorageBytes: 400}, Capacity: model.Amounts{StorageBytes: 1000}, HasStorageRequest: true, HasStorageLimit: true, UsedKnown: true, PreferCapacity: true}
+	footer := table.TotalsLine(usage, 2)
+	if strings.Contains(footer, "%") || !strings.Contains(footer, "123B used") {
+		t.Fatalf("misleading combined summary: %s", footer)
+	}
+}

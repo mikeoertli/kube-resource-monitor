@@ -77,6 +77,7 @@ anything you care about.
 | `krm node` | Node usage and allocatable capacity; live on a terminal, snapshot when piped |
 | `krm node top` | One node snapshot, then exit |
 | `krm node watch` | Live node view |
+| `krm storage` | Ephemeral storage and PVCs together; one-minute refresh |
 | `krm notify` | Watch thresholds and send notifications |
 
 Bare `krm` reads its environment the same way `git log` decides whether to
@@ -105,7 +106,7 @@ krm -g pod           # individual pods
 krm -g container -c  # individual containers
 krm -g node          # by node, measured against allocatable
 krm -g namespace     # by namespace
-krm -g pvc           # persistent volume claims and how full they are
+krm -g storage       # ephemeral storage and PVCs together
 krm -g deployment    # only Deployments (also: statefulset, daemonset, job)
 ```
 
@@ -126,6 +127,53 @@ processes; if unavailable, krm warns and falls back to summed pod usage. Pods
 are collected across all namespaces, and idle nodes are included. Nodes are
 cluster-scoped, so `krm node` rejects `--namespace`. `krm nodes` is an alias;
 `krm -g node` continues to work.
+
+### Storage
+
+```sh
+krm storage                           # all storage; refresh every minute
+krm storage top -A                    # snapshot across namespaces
+krm storage --type ephemeral          # local ephemeral storage only
+krm storage --type pvc                # persistent claims only
+krm storage watch -i 5m               # slower refresh interval
+krm storage top --csv ./samples       # snapshot plus timestamped CSV files
+```
+
+`storage` combines ephemeral-storage budgets, disk-backed `emptyDir` details,
+and PVCs in one table. The **KIND** column identifies each flavor: `ephemeral`
+for a pod's local storage total, `emptydir` for a local volume, and `pvc` for a
+persistent claim. Expand a pod to see its `emptyDir` volumes. Each row keeps its
+own request, usage, and limit/capacity bar. The combined footer reports total
+usage and requests; it avoids a single percentage across unrelated bounds.
+Use `krm storage watch -i 5m` for slower updates or `--csv ./storage-samples`
+to record everything. `-g storage` also works. All storage commands default to
+one-minute refreshes.
+
+`--type ephemeral` shows pod `ephemeral-storage` requests and limits alongside kubelet
+usage, including writable layers, logs, and disk-backed `emptyDir` volumes.
+Expand a pod to see its `emptyDir` volumes and their `sizeLimit`. Child volumes
+are already included in the pod total and are not added twice. Memory-backed
+`emptyDir` is accounted as memory and excluded from this disk view. See
+[Kubernetes local storage accounting](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#local-ephemeral-storage).
+
+`--type pvc` shows persistent claims, with requested size, measured usage, and
+filesystem capacity. Capacity is a volume size, rather than an ephemeral-storage
+limit. The default is `--type all`. Use `--type` with `krm storage`, its top/watch
+subcommands, or `-g storage` (including notify mode). The TUI has a single storage
+grouping. Existing `-g pvc` and `-g volume` shorthands remain compatible and map
+to the corresponding type filter.
+
+Storage bars use one scale with **R** for request, **U** for usage, **L** for
+limit, and **C** for PVC capacity. Filled space represents usage; **\*** marks
+coincident markers. Numeric columns keep exact values visible. If usage exceeds
+the limit, the scale expands so the limit marker stays inside the bar. Missing
+usage is shown as `-`, with no usage marker; absence of a declared limit stays
+absent.
+
+Storage uses kubelet summary stats and require `nodes/proxy` access; they do
+not require metrics-server. Without usage access, declared budgets and sizes
+remain visible with a warning. Actual availability depends on kubelet/runtime
+storage accounting; krm does not estimate usage from PVC size or requests.
 
 ### Filtering
 
@@ -173,8 +221,12 @@ The first column is the sample timestamp in UTC (RFC 3339). The complete column
 order matches `-o csv`:
 
 ```text
-timestamp,kind,namespace,name,node,ready,phase,restarts,cpu_milli,cpu_request_milli,cpu_limit_milli,cpu_percent_of_limit,mem_bytes,mem_request_bytes,mem_limit_bytes,mem_percent_of_limit,storage_used_bytes,storage_capacity_bytes,storage_percent,metrics_missing
+timestamp,kind,namespace,name,node,ready,phase,restarts,cpu_milli,cpu_request_milli,cpu_limit_milli,cpu_percent_of_limit,mem_bytes,mem_request_bytes,mem_limit_bytes,mem_percent_of_limit,storage_used_bytes,storage_capacity_bytes,storage_percent,metrics_missing,storage_request_bytes,storage_limit_bytes
 ```
+
+Storage exports include optional request and limit byte fields. Existing CSV
+files from versions with older columns are rejected; use a new output directory
+to preserve the old samples without mixing schemas.
 
 CPU values are in millicores; memory and storage are in bytes. Grouping and filters
 control which resources are collected; expanding or collapsing the live view
@@ -219,7 +271,7 @@ Note that lowercase `q` toggles a column; quitting is `Q` or `ctrl+c`.
 ```sh
 krm notify --on 'cpu>85%'
 krm notify --on 'mem>90% of request' --on 'cpu>1500m' --for 2m
-krm notify -g pvc --on 'storage>80%' -i 5m
+krm notify -g storage --type pvc --on 'storage>80%' -i 5m
 krm notify --on 'cpu>90%' --once --exit-code   # for cron; exits 2 on breach
 ```
 
@@ -273,8 +325,8 @@ window, so you do not chase a spike that has already passed.
 ## Permissions
 
 Ordinary read access to pods, workloads, nodes, and `metrics.k8s.io` covers everything
-except volume usage, which comes from each kubelet's summary endpoint and needs
-`nodes/proxy`. Without it, `-g pvc` still lists every claim and its provisioned
+except disk usage (ephemeral volumes and PVCs), which comes from each kubelet's summary endpoint and needs
+`nodes/proxy`. Without it, `krm storage --type pvc` still lists every claim and its provisioned
 size and says why usage is unavailable, rather than failing.
 
 ## Trying it without a cluster

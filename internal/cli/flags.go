@@ -30,6 +30,7 @@ type globalFlags struct {
 	fieldSelector string
 	filter        string
 	groupBy       string
+	storageType   string
 
 	containers     bool
 	requests       bool
@@ -71,7 +72,8 @@ func (f *globalFlags) register(cmd *cobra.Command) {
 	p.StringVarP(&f.selector, "selector", "l", "", "label selector, e.g. app=web,tier!=cache")
 	p.StringVar(&f.fieldSelector, "field-selector", "", "field selector passed to the pod list, e.g. spec.nodeName=node-1")
 	p.StringVarP(&f.filter, "filter", "f", "", "filter by name; a regular expression when it parses as one, otherwise a case-insensitive substring")
-	p.StringVarP(&f.groupBy, "group-by", "g", "workload", "workload, pod, container, node, namespace, pvc, deployment, statefulset, daemonset, job")
+	p.StringVar(&f.storageType, "type", "all", "storage type: all, ephemeral, or pvc (with storage or -g storage)")
+	p.StringVarP(&f.groupBy, "group-by", "g", "workload", "workload, pod, container, node, namespace, storage, deployment, statefulset, daemonset, job")
 
 	p.BoolVarP(&f.containers, "containers", "c", false, "break pods down by container")
 	p.BoolVar(&f.requests, "requests", false, "show the requests columns")
@@ -156,6 +158,10 @@ func (f *globalFlags) resolve(ctx context.Context) (*resolved, error) {
 	if err != nil {
 		return nil, err
 	}
+	storageType, err := inventory.ParseStorageType(f.storageType)
+	if err != nil {
+		return nil, err
+	}
 	sortKey, err := parseSortKey(f.sortBy)
 	if err != nil {
 		return nil, err
@@ -179,24 +185,26 @@ func (f *globalFlags) resolve(ctx context.Context) (*resolved, error) {
 			FieldSelector:     f.fieldSelector,
 			NamePattern:       f.filter,
 			GroupBy:           groupBy,
+			StorageType:       storageType,
 			IncludeContainers: f.containers || groupBy == inventory.GroupContainer,
 			IncludeMissing:    f.includeMissing,
 			OnlyProblems:      f.onlyProblems,
 			ProblemThreshold:  f.threshold,
 		},
 		rendOpts: render.Options{
-			ShowRequests: f.requests,
-			ShowLimits:   f.limits,
-			ShowBars:     f.bars && format == render.FormatTable,
-			ShowNode:     groupBy == inventory.GroupPod || groupBy == inventory.GroupContainer,
-			ShowAge:      f.age,
-			ShowRestarts: f.restarts,
-			ShowReady:    true,
-			ShowLabels:   f.labels,
-			Storage:      groupBy == inventory.GroupPVC,
-			BarWidth:     12,
-			BarStyle:     barStyle,
-			Thresholds:   render.DefaultThresholds,
+			ShowRequests:    f.requests,
+			ShowLimits:      f.limits,
+			ShowBars:        f.bars && format == render.FormatTable,
+			ShowNode:        groupBy == inventory.GroupPod || groupBy == inventory.GroupContainer,
+			ShowAge:         f.age,
+			ShowRestarts:    f.restarts,
+			ShowReady:       true,
+			ShowLabels:      f.labels,
+			Storage:         groupBy == inventory.GroupPVC || groupBy == inventory.GroupVolume || groupBy == inventory.GroupStorage,
+			CombinedStorage: groupBy == inventory.GroupStorage && storageType == inventory.StorageAll,
+			BarWidth:        12,
+			BarStyle:        barStyle,
+			Thresholds:      render.DefaultThresholds,
 		},
 	}
 	if r.rendOpts.Storage && (sortKey == model.SortCPU || sortKey == model.SortMemory) {
@@ -224,13 +232,16 @@ func (f *globalFlags) resolve(ctx context.Context) (*resolved, error) {
 		return nil, err
 	}
 
-	available, err := client.MetricsAvailable(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("could not reach the cluster: %w", err)
-	}
-	if !available {
-		status := metricsserver.Detect(ctx, client.Kube, false)
-		return nil, &metricsUnavailableError{status: status, kubeContext: client.ContextName}
+	if groupBy != inventory.GroupPVC && groupBy != inventory.GroupVolume && groupBy != inventory.GroupStorage {
+		available, err := client.MetricsAvailable(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("could not reach the cluster: %w", err)
+		}
+		if !available {
+			status := metricsserver.Detect(ctx, client.Kube, false)
+			return nil, &metricsUnavailableError{status: status, kubeContext: client.ContextName}
+		}
+
 	}
 
 	r.client = client

@@ -120,8 +120,12 @@ func (m *Model) statusBar() string {
 		p.Label.Render(ns),
 	}, " ")
 
+	group := string(m.cfg.Options.GroupBy)
+	if group == "storage" && m.cfg.Options.StorageType != "" && m.cfg.Options.StorageType != "all" {
+		group += ":" + string(m.cfg.Options.StorageType)
+	}
 	right := strings.Join([]string{
-		p.Muted.Render("group") + " " + p.Value.Render(string(m.cfg.Options.GroupBy)),
+		p.Muted.Render("group") + " " + p.Value.Render(group),
 		p.Muted.Render("sort") + " " + p.Value.Render(string(m.cfg.Sort)+dir),
 		p.Muted.Render("every") + " " + p.Value.Render(intervalLabel(m.cfg.Interval)),
 		p.Muted.Render(m.freshness()),

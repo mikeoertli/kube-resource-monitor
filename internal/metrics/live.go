@@ -94,6 +94,10 @@ type summaryResponse struct {
 		NodeName string `json:"nodeName"`
 	} `json:"node"`
 	Pods []struct {
+		EphemeralStorage *struct {
+			Time      time.Time `json:"time"`
+			UsedBytes *int64    `json:"usedBytes"`
+		} `json:"ephemeral-storage"`
 		PodRef struct {
 			Name      string `json:"name"`
 			Namespace string `json:"namespace"`
@@ -122,7 +126,7 @@ type summaryResponse struct {
 // fan out across nodes, and tolerate per-node failures because a single
 // unreachable or restarting kubelet should not blank out the whole view. That
 // also means results can be partially complete, which is why the returned
-// error is only non-nil when *every* node failed.
+// partial failures are returned alongside successful samples.
 func (l *Live) VolumeMetrics(ctx context.Context, namespace string) ([]VolumeSample, error) {
 	nodes, err := l.kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -170,6 +174,9 @@ func (l *Live) VolumeMetrics(ctx context.Context, namespace string) ([]VolumeSam
 	if failures == len(nodes.Items) {
 		return nil, fmt.Errorf("volume stats unavailable on all %d nodes (needs nodes/proxy access): %w", failures, firstErr)
 	}
+	if failures > 0 {
+		return out, fmt.Errorf("volume stats unavailable on %d of %d nodes: %w", failures, len(nodes.Items), firstErr)
+	}
 	return out, nil
 }
 
@@ -188,12 +195,24 @@ func (l *Live) nodeVolumeStats(ctx context.Context, nodeName, namespace string) 
 		return nil, fmt.Errorf("node %s summary decode: %w", nodeName, err)
 	}
 
+	return volumeSamples(sum, namespace), nil
+}
+
+func volumeSamples(sum summaryResponse, namespace string) []VolumeSample {
 	var out []VolumeSample
 	for _, p := range sum.Pods {
+		if namespace != "" && p.PodRef.Namespace != namespace {
+			continue
+		}
+		if e := p.EphemeralStorage; e != nil && e.UsedBytes != nil {
+			out = append(out, VolumeSample{Namespace: p.PodRef.Namespace, PodName: p.PodRef.Name, UsedBytes: *e.UsedBytes, Timestamp: e.Time})
+		}
 		for _, v := range p.Volume {
-			// Only PVC-backed volumes are interesting; configmap, secret, and
-			// emptyDir mounts would drown the view in noise.
+			if v.UsedBytes == nil {
+				continue
+			}
 			if v.PVCRef == nil {
+				out = append(out, VolumeSample{Namespace: p.PodRef.Namespace, PodName: p.PodRef.Name, VolumeName: v.Name, UsedBytes: *v.UsedBytes, Timestamp: v.Time})
 				continue
 			}
 			if namespace != "" && v.PVCRef.Namespace != namespace {
@@ -220,7 +239,7 @@ func (l *Live) nodeVolumeStats(ctx context.Context, nodeName, namespace string) 
 			out = append(out, s)
 		}
 	}
-	return out, nil
+	return out
 }
 
 var _ Provider = (*Live)(nil)

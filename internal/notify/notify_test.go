@@ -57,8 +57,8 @@ func TestParseRuleStorageDefaultsToCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Basis != model.BasisCapacity {
-		t.Errorf("basis = %q, want capacity (volumes have no limits)", r.Basis)
+	if r.Basis != "" {
+		t.Errorf("basis = %q, want best available storage basis", r.Basis)
 	}
 }
 

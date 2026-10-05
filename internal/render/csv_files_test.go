@@ -107,8 +107,8 @@ func TestResourceCSVColumnOrderAndValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantHeader := "timestamp,kind,namespace,name,node,ready,phase,restarts,cpu_milli,cpu_request_milli,cpu_limit_milli,cpu_percent_of_limit,mem_bytes,mem_request_bytes,mem_limit_bytes,mem_percent_of_limit,storage_used_bytes,storage_capacity_bytes,storage_percent,metrics_missing"
-	wantRow := "2026-09-10T18:34:56Z,Deployment,prod,web app/test,node-1,1/1,Running,2,250,500,1000,25.0,1024,2048,4096,25.0,2048,8192,25.0,false"
+	wantHeader := "timestamp,kind,namespace,name,node,ready,phase,restarts,cpu_milli,cpu_request_milli,cpu_limit_milli,cpu_percent_of_limit,mem_bytes,mem_request_bytes,mem_limit_bytes,mem_percent_of_limit,storage_used_bytes,storage_capacity_bytes,storage_percent,metrics_missing,storage_request_bytes,storage_limit_bytes"
+	wantRow := "2026-09-10T18:34:56Z,Deployment,prod,web app/test,node-1,1/1,Running,2,250,500,1000,25.0,1024,2048,4096,25.0,2048,8192,25.0,false,,"
 	if len(records) != 2 {
 		t.Fatalf("records: %v", records)
 	}
@@ -117,5 +117,20 @@ func TestResourceCSVColumnOrderAndValues(t *testing.T) {
 	}
 	if got := strings.Join(records[1], ","); got != wantRow {
 		t.Fatalf("sample: %s", got)
+	}
+}
+
+func TestCSVRejectsOldSchemaWithoutAppending(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.csv")
+	old := "timestamp,kind\n2026-01-01T00:00:00Z,Pod\n"
+	if err := os.WriteFile(path, []byte(old), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := appendResourceSample(path, time.Now(), &model.Row{Kind: model.KindPod, Name: "web"}); err == nil {
+		t.Fatal("mixed CSV schemas")
+	}
+	got, _ := os.ReadFile(path)
+	if string(got) != old {
+		t.Fatal("old file modified")
 	}
 }

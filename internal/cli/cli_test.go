@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // run executes the root command with args and returns stdout.
@@ -509,5 +510,101 @@ func TestNodeRejectsConflictingFlags(t *testing.T) {
 	}
 	if _, err := run(t, "node", "watch", "-o", "json"); err == nil || !strings.Contains(err.Error(), "cannot be combined") {
 		t.Fatalf("bad watch error: %v", err)
+	}
+}
+
+func TestStorageCommands(t *testing.T) {
+	for _, kind := range []string{"all", "ephemeral", "pvc"} {
+		cmd := newRootCommand()
+		cmd.SetArgs([]string{"storage", "top", "--type", kind, "--demo", "--no-color", "-n", "prod"})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		interval, _ := cmd.Flags().GetDuration("interval")
+		if interval != time.Minute {
+			t.Fatalf("storage interval = %s", interval)
+		}
+		if !strings.Contains(out.String(), "REQUEST") || !strings.Contains(out.String(), "LIMIT/SIZE") {
+			t.Fatalf("no storage budget columns: %s", out.String())
+		}
+		if kind == "all" && (!strings.Contains(out.String(), "storefront") || !strings.Contains(out.String(), "data-postgres") || !strings.Contains(out.String(), "emptydir") || !strings.Contains(out.String(), "pvc")) {
+			t.Fatalf("missing combined storage flavors: %s", out.String())
+		}
+		if kind == "ephemeral" && (!strings.Contains(out.String(), "4.0Gi") || !strings.Contains(out.String(), "cache")) {
+			t.Fatalf("no ephemeral samples: %s", out.String())
+		}
+	}
+	out, err := run(t, "storage", "top", "--type", "ephemeral", "-n", "prod", "-o", "json")
+	if err != nil || !strings.Contains(out, `"storageLimitBytes": 4294967296`) || !strings.Contains(out, `"storageRequestBytes": 1073741824`) || !strings.Contains(out, `"storagePercentOfLimit": 75`) {
+		t.Fatalf("bad volume export: %v %s", err, out)
+	}
+	if _, err := run(t, "storage", "top", "--interval", "500ms"); err == nil {
+		t.Fatal("interval validation lost")
+	}
+}
+
+func TestCombinedStorageJSONAndCSV(t *testing.T) {
+	dir := t.TempDir()
+	out, err := run(t, "storage", "top", "-n", "prod", "-o", "json", "--csv", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		GroupBy string `json:"groupBy"`
+		Rows    []struct{ Kind string }
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatal(err)
+	}
+	kinds := map[string]int{}
+	for _, row := range doc.Rows {
+		kinds[row.Kind]++
+	}
+	if doc.GroupBy != "storage" || kinds["EphemeralStorage"] != 3 || kinds["PersistentVolumeClaim"] != 3 {
+		t.Fatalf("bad combined JSON: %s", out)
+	}
+	for _, name := range []string{"prod__ephemeralstorage__storefront-7c9d-h4k2n.csv", "prod__persistentvolumeclaim__data-postgres-0.csv"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestStorageTypeFiltersAndValidation(t *testing.T) {
+	for _, kind := range []string{"ephemeral", "pvc"} {
+		out, err := run(t, "storage", "top", "--type", kind, "-n", "prod", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc struct{ Rows []struct{ Kind string } }
+		if err := json.Unmarshal([]byte(out), &doc); err != nil {
+			t.Fatal(err)
+		}
+		if len(doc.Rows) != 3 {
+			t.Fatalf("wrong row count for %s: %s", kind, out)
+		}
+		for _, row := range doc.Rows {
+			want := "EphemeralStorage"
+			if kind == "pvc" {
+				want = "PersistentVolumeClaim"
+			}
+			if row.Kind != want {
+				t.Fatalf("wrong flavor %s for %s", row.Kind, kind)
+			}
+		}
+	}
+	for _, args := range [][]string{{"volume"}, {"pvc"}, {"storage", "--type", "invalid"}, {"top", "--type", "pvc"}} {
+		if _, err := run(t, args...); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
+	}
+	// Existing grouping shorthand remains a compatible path to the same view.
+	if _, err := run(t, "top", "-g", "pvc"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(t, "notify", "-g", "storage", "--type", "pvc", "--on", "storage>80%", "--once", "--stdout"); err != nil {
+		t.Fatal(err)
 	}
 }

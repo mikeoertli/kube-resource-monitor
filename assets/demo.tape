@@ -69,7 +69,19 @@ Type "E"
 Sleep 2s
 Type "Q"
 Sleep 500ms
-Type "krm top --demo -n prod -g pvc"
+Hide
+Type "clear"
+Enter
+Sleep 300ms
+Show
+Type "krm storage --demo -n prod"
+Enter
+Sleep 3s
+Type "E"
+Sleep 3s
+Type "Q"
+Sleep 500ms
+Type "krm storage top --type pvc --demo -n prod"
 Enter
 Sleep 4s
 Hide
@@ -78,7 +90,7 @@ Enter
 Sleep 300ms
 Show
 # Threshold notifications stay on stdout: no desktop notifications.
-Type "krm notify --demo -n prod -g pvc --on 'storage>80%' --once --stdout"
+Type "krm notify --demo -n prod -g storage --type pvc --on 'storage>80%' --once --stdout"
 Enter
 Sleep 4s
 Hide

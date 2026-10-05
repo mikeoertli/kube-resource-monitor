@@ -446,7 +446,8 @@ func (m *Model) cycleGroup() {
 // afterGroupChange adjusts the columns that only make sense for some groupings.
 func (m *Model) afterGroupChange() {
 	g := m.cfg.Options.GroupBy
-	m.cfg.Render.Storage = g == inventory.GroupPVC
+	m.cfg.Render.Storage = g == inventory.GroupPVC || g == inventory.GroupVolume || g == inventory.GroupStorage
+	m.cfg.Render.CombinedStorage = g == inventory.GroupStorage && (m.cfg.Options.StorageType == inventory.StorageAll || m.cfg.Options.StorageType == "")
 	m.cfg.Render.ShowNode = g == inventory.GroupPod || g == inventory.GroupContainer
 	if g == inventory.GroupContainer {
 		m.cfg.Options.IncludeContainers = true

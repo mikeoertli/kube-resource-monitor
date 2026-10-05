@@ -96,9 +96,6 @@ func ParseRule(s string) (Rule, error) {
 		default:
 			r.Basis = "" // best available
 		}
-		if r.Metric == model.MetricStorage && r.Basis == "" {
-			r.Basis = model.BasisCapacity
-		}
 		return r, nil
 	}
 
@@ -173,6 +170,9 @@ func (r Rule) Describe() string {
 		basis := string(r.Basis)
 		if basis == "" {
 			basis = "limit"
+			if r.Metric == model.MetricStorage {
+				basis = "limit/request/capacity"
+			}
 		}
 		return fmt.Sprintf("%s %s %s of %s", metric, r.Op, model.FormatPercent(r.Percent, true), basis)
 	}

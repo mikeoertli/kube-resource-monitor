@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -26,14 +27,16 @@ MODES
   krm top      one table, then exit                    (always)
   krm watch    live view                               (always)
   krm node     node usage and capacity, live on a terminal
+  krm storage  volumes and PVCs together; filter with --type
   krm notify   watch thresholds, send notifications
 
 So "krm" on its own opens the interactive view, while "krm | grep web" and
 "krm -o json" print plain output you can pipe. Reach for "krm top" when you
 want a single snapshot without leaving your scrollback.
 
-It reads the same metrics.k8s.io API that kubectl top uses, so it needs
-metrics-server installed -- run "krm install-metrics-server" if it is not.
+Workload and node views read the same metrics.k8s.io API that kubectl top uses
+and need metrics-server -- run "krm install-metrics-server" if it is missing.
+Storage uses kubelet summary stats through nodes/proxy instead.
 Unlike kubectl top it can roll usage up to the Deployment or StatefulSet that
 owns a pod, break it down to individual containers, color everything by how
 close it is to its limit, and stay open watching it change.`
@@ -92,6 +95,16 @@ func newRootCommand() *cobra.Command {
 
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			for parent := cmd; parent != nil; parent = parent.Parent() {
+				if parent.Name() == "storage" {
+					if cmd.Flags().Changed("group-by") && f.groupBy != parent.Name() {
+						return fmt.Errorf("krm %s requires --group-by %s", parent.Name(), parent.Name())
+					}
+					f.groupBy = parent.Name()
+					if !cmd.Flags().Changed("interval") {
+						f.interval = time.Minute
+					}
+					break
+				}
 				if parent.Name() == "node" {
 					if cmd.Flags().Changed("namespace") {
 						return fmt.Errorf("nodes are cluster-scoped; --namespace is not supported by krm node")
@@ -110,14 +123,33 @@ func newRootCommand() *cobra.Command {
 					break
 				}
 			}
+			// Preserve the established grouping shorthands without separate commands.
+			switch f.groupBy {
+			case "pvc", "pvcs":
+				f.groupBy = "storage"
+				if !cmd.Flags().Changed("type") {
+					f.storageType = "pvc"
+				}
+			case "volume", "volumes", "ephemeral":
+				f.groupBy = "storage"
+				if !cmd.Flags().Changed("type") {
+					f.storageType = "ephemeral"
+				}
+			}
+			if cmd.Flags().Changed("type") && f.groupBy != "storage" {
+				return fmt.Errorf("--type requires krm storage or --group-by storage")
+			}
+			if f.groupBy == "storage" && !cmd.Flags().Changed("interval") {
+				f.interval = time.Minute
+			}
 			if cmd.Flags().Changed("csv") {
 				if f.csvDir == "" {
 					return fmt.Errorf("--csv requires a non-empty output directory")
 				}
 				switch cmd.Name() {
-				case "krm", "top", "watch", "notify", "node":
+				case "krm", "top", "watch", "notify", "node", "storage":
 				default:
-					return fmt.Errorf("--csv is only supported by krm, node, top, watch, and notify")
+					return fmt.Errorf("--csv is only supported by krm, node, storage, top, watch, and notify")
 				}
 			}
 			return nil
@@ -142,6 +174,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(
 		newTopCommand(f),
 		newNodeCommand(f),
+		newStorageCommand(f),
 		newWatchCommand(f),
 		newNotifyCommand(f),
 		newInstallCommand(f),
@@ -185,6 +218,33 @@ pod breakdowns cover all namespaces. --filter matches node names.`,
 	top.Long = "Print one snapshot of node CPU and memory usage and exit. Supports -o json, -o csv, and -o prometheus."
 	watch := newWatchCommand(f)
 	watch.Long = "Monitor node CPU and memory usage in the interactive view. Press ? for controls and Q to quit."
+	cmd.AddCommand(top, watch)
+	return cmd
+}
+
+func newStorageCommand(f *globalFlags) *cobra.Command {
+	description := "Monitor ephemeral volumes and persistent claims, identified by kind"
+	cmd := &cobra.Command{Use: "storage", Short: description,
+		Long: description + `. Refreshes every minute by default; override with --interval.
+
+Use --type ephemeral or --type pvc to filter; the default is --type all.
+
+Bars place request, usage, and limit (or PVC capacity) markers on a common scale.
+Usage comes from kubelet summary stats and requires nodes/proxy access. Missing
+measurements are shown as unknown while declared budgets remain visible.
+
+On a terminal, open the live view. When piped or using a machine output format,
+print one snapshot. Use the top and watch subcommands for explicit modes.`,
+		Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+			if isTerminal() && f.output == "table" {
+				return runWatch(cmd, f)
+			}
+			return runOnce(cmd, f)
+		}}
+	top := newTopCommand(f)
+	top.Long = "Print one storage snapshot and exit."
+	watch := newWatchCommand(f)
+	watch.Long = "Monitor storage usage in the live view, refreshing every minute by default."
 	cmd.AddCommand(top, watch)
 	return cmd
 }
@@ -328,6 +388,9 @@ func writeTable(out io.Writer, r *resolved, snap *inventory.Snapshot, f *globalF
 
 	fmt.Fprint(out, tbl.Render(flat))
 	fmt.Fprintln(out, tbl.TotalsLine(snap.Totals, len(flat)))
+	if r.rendOpts.Storage && r.rendOpts.ShowBars {
+		fmt.Fprintln(out, tbl.Legend())
+	}
 	if snap.MissingMetrics > 0 && !f.includeMissing {
 		fmt.Fprintln(out, r.palette.Muted.Render(fmt.Sprintf(
 			"  %d pod(s) had no metrics sample and were omitted; pass --include-missing to show them",

@@ -78,7 +78,7 @@ a smear.
 [`demo.tape`](demo.tape) is the [VHS](https://github.com/charmbracelet/vhs)
 sequence for [`krm-demo.gif`](krm-demo.gif), embedded in the main README.
 It demonstrates live metrics, filtering, pod/container drilldown, requests and
-limits, sorting, namespaces, hot-resource filtering, live `krm node` monitoring and PVC capacity, stdout alerts, and CSV
+limits, sorting, namespaces, hot-resource filtering, live `krm node` monitoring, the combined `krm storage` view (ephemeral-storage budgets and PVC capacity), stdout alerts, and CSV
 files. All commands use `--demo`; no cluster or desktop notifications are used.
 
 Install VHS, ttyd, ffmpeg, and Go on your PATH (on macOS: `brew install vhs go`).

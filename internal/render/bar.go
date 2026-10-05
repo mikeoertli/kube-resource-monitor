@@ -121,3 +121,47 @@ func Sparkline(values []float64, max float64) string {
 	}
 	return b.String()
 }
+
+// StorageBar draws usage fill with request and limit/capacity markers on the
+// same scale. Over-limit usage extends the scale instead of hiding the excess.
+func StorageBar(u model.Usage, known bool, width int, style BarStyle) string {
+	if width <= 0 {
+		return ""
+	}
+	scale := u.Requests.StorageBytes
+	if u.Limits.StorageBytes > scale {
+		scale = u.Limits.StorageBytes
+	}
+	if u.Capacity.StorageBytes > scale {
+		scale = u.Capacity.StorageBytes
+	}
+	if known && u.Used.StorageBytes > scale {
+		scale = u.Used.StorageBytes
+	}
+	if scale <= 0 {
+		return strings.Repeat("·", width)
+	}
+	cells := []rune(Bar(float64(u.Used.StorageBytes)/float64(scale), known, width, style))
+	occupied := map[int]bool{}
+	mark := func(value int64, glyph rune) {
+		i := int(float64(value) / float64(scale) * float64(width-1))
+		if occupied[i] {
+			cells[i] = '*'
+		} else {
+			cells[i] = glyph
+		}
+		occupied[i] = true
+	}
+	if u.HasStorageRequest {
+		mark(u.Requests.StorageBytes, 'R')
+	}
+	if u.HasStorageLimit {
+		mark(u.Limits.StorageBytes, 'L')
+	} else if u.Capacity.StorageBytes > 0 {
+		mark(u.Capacity.StorageBytes, 'C')
+	}
+	if known {
+		mark(u.Used.StorageBytes, 'U')
+	}
+	return string(cells)
+}

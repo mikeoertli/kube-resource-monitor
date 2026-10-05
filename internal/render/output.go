@@ -74,9 +74,13 @@ type ExportRow struct {
 	MemLimitBytes   *int64   `json:"memLimitBytes,omitempty"`
 	MemPercent      *float64 `json:"memPercentOfLimit,omitempty"`
 
-	StorageUsedBytes     *int64   `json:"storageUsedBytes,omitempty"`
-	StorageCapacityBytes *int64   `json:"storageCapacityBytes,omitempty"`
-	StoragePercent       *float64 `json:"storagePercentOfCapacity,omitempty"`
+	StorageRequestBytes     *int64   `json:"storageRequestBytes,omitempty"`
+	StorageLimitBytes       *int64   `json:"storageLimitBytes,omitempty"`
+	StorageUsedBytes        *int64   `json:"storageUsedBytes,omitempty"`
+	StorageCapacityBytes    *int64   `json:"storageCapacityBytes,omitempty"`
+	StoragePercentOfLimit   *float64 `json:"storagePercentOfLimit,omitempty"`
+	StoragePercentOfRequest *float64 `json:"storagePercentOfRequest,omitempty"`
+	StoragePercent          *float64 `json:"storagePercentOfCapacity,omitempty"`
 
 	MetricsMissing bool        `json:"metricsMissing,omitempty"`
 	Children       []ExportRow `json:"children,omitempty"`
@@ -133,8 +137,14 @@ func ToExportRow(r *model.Row) ExportRow {
 
 		MetricsMissing: r.MetricsMissing,
 	}
-	if r.Kind == model.KindPVC || u.Capacity.StorageBytes > 0 {
+	out.StorageRequestBytes = p64(u.Requests.StorageBytes, u.HasStorageRequest)
+	out.StorageLimitBytes = p64(u.Limits.StorageBytes, u.HasStorageLimit)
+	if r.Kind == model.KindPVC || r.Kind == model.KindEphemeral || r.Kind == model.KindVolume || u.Capacity.StorageBytes > 0 {
 		sf, sok := u.StorageOfCapacity()
+		lf, lok := u.Fraction(model.MetricStorage, model.BasisLimit)
+		rf, rok := u.Fraction(model.MetricStorage, model.BasisRequest)
+		out.StoragePercentOfLimit = pf(lf*100, lok && !r.MetricsMissing)
+		out.StoragePercentOfRequest = pf(rf*100, rok && !r.MetricsMissing)
 		out.StorageUsedBytes = p64(u.Used.StorageBytes, !r.MetricsMissing)
 		out.StorageCapacityBytes = p64(u.Capacity.StorageBytes, u.Capacity.StorageBytes > 0)
 		out.StoragePercent = pf(sf*100, sok && !r.MetricsMissing)
@@ -161,13 +171,7 @@ func WriteCSV(w io.Writer, e Export) error {
 func writeCSV(w io.Writer, e Export, includeHeader bool) error {
 	cw := csv.NewWriter(w)
 
-	header := []string{
-		"timestamp", "kind", "namespace", "name", "node", "ready", "phase", "restarts",
-		"cpu_milli", "cpu_request_milli", "cpu_limit_milli", "cpu_percent_of_limit",
-		"mem_bytes", "mem_request_bytes", "mem_limit_bytes", "mem_percent_of_limit",
-		"storage_used_bytes", "storage_capacity_bytes", "storage_percent",
-		"metrics_missing",
-	}
+	header := csvColumns()
 	if includeHeader {
 		if err := cw.Write(header); err != nil {
 			return err
@@ -182,8 +186,8 @@ func writeCSV(w io.Writer, e Export, includeHeader bool) error {
 				ts, r.Kind, r.Namespace, r.Name, r.Node, r.Ready, r.Phase, strconv.Itoa(int(r.Restarts)),
 				strconv.FormatInt(r.CPUMilli, 10), optInt(r.CPURequestMilli), optInt(r.CPULimitMilli), optFloat(r.CPUPercent),
 				strconv.FormatInt(r.MemBytes, 10), optInt(r.MemRequestBytes), optInt(r.MemLimitBytes), optFloat(r.MemPercent),
-				optInt(r.StorageUsedBytes), optInt(r.StorageCapacityBytes), optFloat(r.StoragePercent),
-				strconv.FormatBool(r.MetricsMissing),
+				optInt(r.StorageUsedBytes), optInt(r.StorageCapacityBytes), optFloat(exportStoragePercent(r)),
+				strconv.FormatBool(r.MetricsMissing), optInt(r.StorageRequestBytes), optInt(r.StorageLimitBytes),
 			}
 			if err := cw.Write(rec); err != nil {
 				return err
@@ -228,6 +232,18 @@ func WritePrometheus(w io.Writer, e Export) error {
 				return 0, false
 			}
 			return float64(*r.MemLimitBytes), true
+		}},
+		{"krm_storage_request_bytes", "Declared storage request in bytes.", func(r ExportRow) (float64, bool) {
+			if r.StorageRequestBytes == nil {
+				return 0, false
+			}
+			return float64(*r.StorageRequestBytes), true
+		}},
+		{"krm_storage_limit_bytes", "Declared local ephemeral storage limit in bytes.", func(r ExportRow) (float64, bool) {
+			if r.StorageLimitBytes == nil {
+				return 0, false
+			}
+			return float64(*r.StorageLimitBytes), true
 		}},
 		{"krm_storage_usage_bytes", "Observed volume usage in bytes.", func(r ExportRow) (float64, bool) {
 			if r.StorageUsedBytes == nil {
@@ -280,4 +296,24 @@ func optFloat(p *float64) string {
 		return ""
 	}
 	return strconv.FormatFloat(*p, 'f', 1, 64)
+}
+
+func csvColumns() []string {
+	return []string{
+		"timestamp", "kind", "namespace", "name", "node", "ready", "phase", "restarts",
+		"cpu_milli", "cpu_request_milli", "cpu_limit_milli", "cpu_percent_of_limit",
+		"mem_bytes", "mem_request_bytes", "mem_limit_bytes", "mem_percent_of_limit",
+		"storage_used_bytes", "storage_capacity_bytes", "storage_percent",
+		"metrics_missing", "storage_request_bytes", "storage_limit_bytes",
+	}
+}
+
+func exportStoragePercent(r ExportRow) *float64 {
+	if r.StoragePercent != nil {
+		return r.StoragePercent
+	}
+	if r.StoragePercentOfLimit != nil {
+		return r.StoragePercentOfLimit
+	}
+	return r.StoragePercentOfRequest
 }

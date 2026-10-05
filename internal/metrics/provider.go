@@ -44,14 +44,18 @@ type NodeSample struct {
 	Timestamp time.Time
 }
 
-// VolumeSample is one PersistentVolumeClaim's measured consumption, as reported
-// by the kubelet that has it mounted.
+// VolumeSample is PVC, pod ephemeral, or local volume consumption reported
+// by the kubelet. PVC samples use ClaimName; local samples use PodName.
 type VolumeSample struct {
 	Namespace string
 	// ClaimName is the PVC name, which is how users think about volumes even
 	// though the kubelet reports them per-pod-per-volume.
 	ClaimName string
-	UsedBytes int64
+	// PodName and VolumeName identify local ephemeral samples. Empty VolumeName
+	// denotes the pod total; ClaimName is empty for all ephemeral samples.
+	PodName    string
+	VolumeName string
+	UsedBytes  int64
 	// CapacityBytes is what the filesystem reports, which can differ slightly
 	// from the PVC's requested size after filesystem overhead.
 	CapacityBytes int64
@@ -73,7 +77,7 @@ type Provider interface {
 	NodeMetrics(ctx context.Context) ([]NodeSample, error)
 }
 
-// VolumeProvider is implemented by providers that can also report PVC usage.
+// VolumeProvider is implemented by providers that can report kubelet disk usage.
 //
 // It is a separate interface because volume stats come from a different place
 // (the kubelet summary endpoint, not metrics.k8s.io) and require node/proxy

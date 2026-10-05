@@ -340,28 +340,28 @@ func TestGroupCycleRecollects(t *testing.T) {
 	}
 }
 
-// Switching to the volume view must not leave the table sorted by a column
+// Switching to the storage view must not leave the table sorted by a column
 // that is always zero there.
-func TestSwitchingToVolumeViewFixesSort(t *testing.T) {
+func TestSwitchingToStorageViewFixesSort(t *testing.T) {
 	stub := &stubCollector{snap: testSnapshot()}
 	m := newTestModel(t, stub)
 	m.cfg.Options.GroupBy = inventory.GroupNamespace
 	m.cfg.Sort = model.SortCPU
 
 	for i := 0; i < len(inventory.AllGroupBy)+1; i++ {
-		if m.cfg.Options.GroupBy == inventory.GroupPVC {
+		if m.cfg.Options.GroupBy == inventory.GroupStorage {
 			break
 		}
 		m.cycleGroup()
 	}
-	if m.cfg.Options.GroupBy != inventory.GroupPVC {
-		t.Fatal("never reached the pvc view")
+	if m.cfg.Options.GroupBy != inventory.GroupStorage {
+		t.Fatal("never reached the storage view")
 	}
 	if m.cfg.Sort != model.SortStorage {
-		t.Errorf("sort = %q, want storage in the volume view", m.cfg.Sort)
+		t.Errorf("sort = %q, want storage in the storage view", m.cfg.Sort)
 	}
 	if !m.cfg.Render.Storage {
-		t.Error("the volume view should use storage columns")
+		t.Error("the storage view should use storage columns")
 	}
 }
 
@@ -539,5 +539,25 @@ func TestMenuWrapsAndRespectsNoColor(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(m.menuLines(), " "), "E expand all") {
 		t.Fatal("expand control missing")
+	}
+}
+
+func TestStorageTypeIsVisibleAndControlsTotals(t *testing.T) {
+	m := newTestModel(t, &stubCollector{snap: testSnapshot()})
+	m.cfg.Options.GroupBy = inventory.GroupStorage
+	m.cfg.Options.StorageType = inventory.StoragePVC
+	m.afterGroupChange()
+	if m.cfg.Render.CombinedStorage || !strings.Contains(m.statusBar(), "storage:pvc") {
+		t.Fatal("PVC filter is not reflected in the view")
+	}
+	m.cfg.Options.StorageType = inventory.StorageAll
+	m.afterGroupChange()
+	if !m.cfg.Render.CombinedStorage {
+		t.Fatal("all storage types need mixed-bound totals")
+	}
+	for _, group := range inventory.AllGroupBy {
+		if group == inventory.GroupPVC || group == inventory.GroupVolume {
+			t.Fatal("separate storage grouping remains visible")
+		}
 	}
 }

@@ -10,36 +10,44 @@ import (
 // was actually specified, since an unspecified limit and a limit of zero are
 // very different things.
 type declared struct {
-	Requests    model.Amounts
-	Limits      model.Amounts
-	HasCPUReq   bool
-	HasMemReq   bool
-	HasCPULimit bool
-	HasMemLimit bool
+	Requests        model.Amounts
+	Limits          model.Amounts
+	HasCPUReq       bool
+	HasMemReq       bool
+	HasCPULimit     bool
+	HasMemLimit     bool
+	HasStorageReq   bool
+	HasStorageLimit bool
 }
 
 func (d declared) add(o declared) declared {
 	return declared{
-		Requests:    d.Requests.Add(o.Requests),
-		Limits:      d.Limits.Add(o.Limits),
-		HasCPUReq:   d.HasCPUReq || o.HasCPUReq,
-		HasMemReq:   d.HasMemReq || o.HasMemReq,
-		HasCPULimit: d.HasCPULimit || o.HasCPULimit,
-		HasMemLimit: d.HasMemLimit || o.HasMemLimit,
+		Requests:        d.Requests.Add(o.Requests),
+		Limits:          d.Limits.Add(o.Limits),
+		HasCPUReq:       d.HasCPUReq || o.HasCPUReq,
+		HasMemReq:       d.HasMemReq || o.HasMemReq,
+		HasCPULimit:     d.HasCPULimit || o.HasCPULimit,
+		HasMemLimit:     d.HasMemLimit || o.HasMemLimit,
+		HasStorageReq:   d.HasStorageReq || o.HasStorageReq,
+		HasStorageLimit: d.HasStorageLimit || o.HasStorageLimit,
 	}
 }
 
 func maxDeclared(a, b declared) declared {
 	out := declared{
-		HasCPUReq:   a.HasCPUReq || b.HasCPUReq,
-		HasMemReq:   a.HasMemReq || b.HasMemReq,
-		HasCPULimit: a.HasCPULimit || b.HasCPULimit,
-		HasMemLimit: a.HasMemLimit || b.HasMemLimit,
+		HasCPUReq:       a.HasCPUReq || b.HasCPUReq,
+		HasMemReq:       a.HasMemReq || b.HasMemReq,
+		HasCPULimit:     a.HasCPULimit || b.HasCPULimit,
+		HasMemLimit:     a.HasMemLimit || b.HasMemLimit,
+		HasStorageReq:   a.HasStorageReq || b.HasStorageReq,
+		HasStorageLimit: a.HasStorageLimit || b.HasStorageLimit,
 	}
 	out.Requests.CPUMilli = max64(a.Requests.CPUMilli, b.Requests.CPUMilli)
 	out.Requests.MemBytes = max64(a.Requests.MemBytes, b.Requests.MemBytes)
 	out.Limits.CPUMilli = max64(a.Limits.CPUMilli, b.Limits.CPUMilli)
 	out.Limits.MemBytes = max64(a.Limits.MemBytes, b.Limits.MemBytes)
+	out.Requests.StorageBytes = max64(a.Requests.StorageBytes, b.Requests.StorageBytes)
+	out.Limits.StorageBytes = max64(a.Limits.StorageBytes, b.Limits.StorageBytes)
 	return out
 }
 
@@ -68,6 +76,14 @@ func containerResources(c *corev1.Container) declared {
 	if q, ok := c.Resources.Limits[corev1.ResourceMemory]; ok {
 		d.Limits.MemBytes = q.Value()
 		d.HasMemLimit = true
+	}
+	if q, ok := c.Resources.Requests[corev1.ResourceEphemeralStorage]; ok {
+		d.Requests.StorageBytes = q.Value()
+		d.HasStorageReq = true
+	}
+	if q, ok := c.Resources.Limits[corev1.ResourceEphemeralStorage]; ok {
+		d.Limits.StorageBytes = q.Value()
+		d.HasStorageLimit = true
 	}
 	return d
 }
@@ -160,6 +176,11 @@ func effectivePodResources(spec *corev1.PodSpec) declared {
 			if out.HasCPULimit {
 				out.Limits.CPUMilli += q.MilliValue()
 			}
+		case corev1.ResourceEphemeralStorage:
+			out.Requests.StorageBytes += q.Value()
+			if out.HasStorageLimit {
+				out.Limits.StorageBytes += q.Value()
+			}
 		case corev1.ResourceMemory:
 			out.Requests.MemBytes += q.Value()
 			if out.HasMemLimit {
@@ -178,4 +199,6 @@ func applyDeclared(u *model.Usage, d declared) {
 	u.HasMemRequest = d.HasMemReq
 	u.HasCPULimit = d.HasCPULimit
 	u.HasMemLimit = d.HasMemLimit
+	u.HasStorageRequest = d.HasStorageReq
+	u.HasStorageLimit = d.HasStorageLimit
 }

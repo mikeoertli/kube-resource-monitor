@@ -5,7 +5,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.1] - Work in progress
+## [1.3.0] - Work in progress
+
+### Added
+
+- Add a GitHub Actions workflow that notifies the Homebrew tap when a stable
+  version tag is pushed, and document Homebrew installation and release setup.
+
+## [1.2.1] - 2026-10-06
 
 ### Changed
 

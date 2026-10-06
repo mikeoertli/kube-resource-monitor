@@ -1,0 +1,33 @@
+name: Notify Homebrew tap
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+jobs:
+  update-tap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch tap release updater
+        env:
+          GH_TOKEN: ${{ secrets.TAP_DISPATCH_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          FORMULA: krm
+        run: |
+          set -euo pipefail
+          # Only stable vMAJOR.MINOR.PATCH tags are packaged by the tap.
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Skipping non-stable version tag: $RELEASE_TAG"
+            exit 0
+          fi
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "Set the TAP_DISPATCH_TOKEN repository secret before releasing." >&2
+            exit 1
+          fi
+          gh workflow run update.yml \
+            --repo mikeoertli/homebrew-tap \
+            --ref main \
+            --field "formula=$FORMULA" \
+            --field "tag=$RELEASE_TAG"

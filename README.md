@@ -50,6 +50,17 @@ Or from a clone:
 make install     # builds and installs to $GOPATH/bin
 ```
 
+### Homebrew
+
+```sh
+brew install mikeoertli/tap/krm
+brew update
+brew upgrade mikeoertli/tap/krm
+```
+
+Homebrew installs the dependencies declared by the tap. A compatible prebuilt
+bottle avoids local compilation; otherwise Homebrew builds from source.
+
 ## Requirements
 
 `krm` reads `metrics.k8s.io`, the same API `kubectl top` uses, so it needs
@@ -365,14 +376,14 @@ date (`YYYY-MM-DD`) and add a new `## [<VERSION>] - Work in progress` section.
 No tag or official release is needed for this workflow.
 
 ```sh
-krm version              # krm v0.1.0 (commit abcdef1, built ..., go1.24.7, darwin/arm64)
-krm version --short      # v0.1.0
+krm version              # krm 1.3.0 (commit abcdef1, built ..., go1.24.7, darwin/arm64)
+krm version --short      # 1.3.0
 krm version -o json      # machine-readable, including where the version came from
 ```
 
 The version resolves from whichever source is available: `-ldflags` when built
 through the Makefile (using `VERSION`), the module version when installed with
-`go install ...@v0.1.0`, and the git revision when built from a checkout. A
+`go install ...@v1.3.0`, and the git revision when built from a checkout. A
 build from a modified tree is marked `-dirty`. The `source` field in the JSON
 output says which route a given binary took, which is the quickest way to
 explain a version that reads `dev`.
@@ -399,6 +410,25 @@ changelog, formatting, vet, and tests.
 `go.sum` is not committed. Run `make deps` (or `go mod tidy`) once after
 cloning to generate it; every dependency version is already pinned in
 `go.mod`.
+
+### Homebrew releases
+
+[`.github/workflows/homebrew.yml`](.github/workflows/homebrew.yml) notifies
+[`mikeoertli/homebrew-tap`](https://github.com/mikeoertli/homebrew-tap) when a
+stable `vMAJOR.MINOR.PATCH` tag is pushed. Keep the tag aligned with `VERSION`
+and include the workflow in the tagged commit. For the current version, the
+release tag is `v1.3.0`.
+
+The workflow uses the **TAP_DISPATCH_TOKEN** repository secret to trigger the
+tap's release updater for `krm`. The token needs **Actions: Read and write**
+access to the tap repository. See the [tap's setup instructions](https://github.com/mikeoertli/homebrew-tap#notify-the-tap-when-a-project-is-tagged)
+for token configuration and the publishing process.
+
+The tap opens an update PR, builds and tests its packages, and provides a
+separate bottle-publishing step. The notification does not publish the package
+on its own. Prerelease tags are skipped, and existing tags are not retriggered.
+After the tap update is published, use `brew update` and `brew upgrade` on each
+computer to install it. Ordinary branch pushes do not change the packaged version.
 
 ## License
 

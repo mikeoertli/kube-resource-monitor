@@ -90,7 +90,14 @@ func (t *Table) columns() []column {
 	}
 
 	if t.Opts.Storage {
-		cols = append(cols, column{"REQUEST", alignRight}, column{"USED", alignRight}, column{"LIMIT/SIZE", alignRight}, column{"REQ%", alignLeft}, column{"USE%", alignLeft})
+		if t.Opts.ShowRequests {
+			cols = append(cols, column{"REQUEST", alignRight})
+		}
+		cols = append(cols, column{"USED", alignRight})
+		if t.Opts.ShowLimits {
+			cols = append(cols, column{"LIMIT/SIZE", alignRight})
+		}
+		cols = append(cols, column{"REQ%", alignLeft}, column{"USE%", alignLeft})
 	} else {
 		cols = append(cols, column{"CPU", alignRight})
 		if t.Opts.ShowRequests {
@@ -176,7 +183,9 @@ func (t *Table) rowCells(fr model.FlatRow) []cell {
 		if r.Usage.HasStorageRequest {
 			request = model.FormatBytes(r.Usage.Requests.StorageBytes)
 		}
-		out = append(out, cell{request, p.Muted})
+		if t.Opts.ShowRequests {
+			out = append(out, cell{request, p.Muted})
+		}
 		if r.MetricsMissing {
 			out = append(out, dash)
 		} else {
@@ -189,7 +198,9 @@ func (t *Table) rowCells(fr model.FlatRow) []cell {
 		} else if r.Usage.Capacity.StorageBytes > 0 {
 			bound = model.FormatBytes(r.Usage.Capacity.StorageBytes)
 		}
-		out = append(out, cell{bound, p.Muted})
+		if t.Opts.ShowLimits {
+			out = append(out, cell{bound, p.Muted})
+		}
 		width := t.Opts.BarWidth
 		if width > 8 {
 			width = 8
@@ -231,7 +242,11 @@ func (t *Table) rowCells(fr model.FlatRow) []cell {
 		if r.Restarts > 0 {
 			style = p.Warning
 		}
-		out = append(out, cell{itoa(int(r.Restarts)), style})
+		value := itoa(int(r.Restarts))
+		if r.Kind == model.KindPVC || r.Kind == model.KindVolume {
+			value = "-"
+		}
+		out = append(out, cell{value, style})
 	}
 	if t.Opts.ShowNode {
 		out = append(out, cell{orDash(r.Node), p.Muted})

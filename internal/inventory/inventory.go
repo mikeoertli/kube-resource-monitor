@@ -253,6 +253,9 @@ func (c *Collector) podRow(pod *corev1.Pod, idx metrics.PodSampleIndex, includeC
 		}
 		row.Restarts += cs.RestartCount
 	}
+	for _, status := range pod.Status.InitContainerStatuses {
+		row.Restarts += status.RestartCount
+	}
 	if total > 0 {
 		row.Ready = fmt.Sprintf("%d/%d", ready, total)
 	}
@@ -288,8 +291,10 @@ func (c *Collector) containerRows(pod *corev1.Pod, sample metrics.PodSample, hav
 
 	restarts := map[string]int32{}
 	ready := map[string]bool{}
-	for i := range pod.Status.ContainerStatuses {
-		cs := &pod.Status.ContainerStatuses[i]
+	statuses := append([]corev1.ContainerStatus{}, pod.Status.ContainerStatuses...)
+	statuses = append(statuses, pod.Status.InitContainerStatuses...)
+	for i := range statuses {
+		cs := &statuses[i]
 		restarts[cs.Name] = cs.RestartCount
 		ready[cs.Name] = cs.Ready
 	}
@@ -302,6 +307,10 @@ func (c *Collector) containerRows(pod *corev1.Pod, sample metrics.PodSample, hav
 			Namespace: pod.Namespace,
 			Node:      pod.Spec.NodeName,
 			Restarts:  restarts[spec.Name],
+			Age:       time.Since(pod.CreationTimestamp.Time),
+		}
+		if pod.CreationTimestamp.IsZero() {
+			cr.Age = 0
 		}
 		applyDeclared(&cr.Usage, containerResources(spec))
 		if haveSample {
@@ -369,11 +378,15 @@ func (c *Collector) groupByNode(ctx context.Context, podRows []*model.Row) ([]*m
 
 	nodes, err := c.kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	allocatable := map[string]model.Amounts{}
+	ages := map[string]time.Duration{}
 	if err != nil {
 		warnings = append(warnings, "could not list nodes: "+err.Error()+" (node capacity unavailable)")
 	} else {
 		for i := range nodes.Items {
 			n := &nodes.Items[i]
+			if !n.CreationTimestamp.IsZero() {
+				ages[n.Name] = time.Since(n.CreationTimestamp.Time)
+			}
 			var a model.Amounts
 			if q, ok := n.Status.Allocatable[corev1.ResourceCPU]; ok {
 				a.CPUMilli = q.MilliValue()
@@ -429,6 +442,7 @@ func (c *Collector) groupByNode(ctx context.Context, podRows []*model.Row) ([]*m
 	out := make([]*model.Row, 0, len(order))
 	for _, name := range order {
 		row := byNode[name]
+		row.Age = ages[name]
 		capacity := row.Usage.Capacity
 		row.Rollup()
 		// Rollup replaced the node's Usage with the sum of its pods, which
@@ -530,34 +544,37 @@ func (c *Collector) groupByWorkload(ctx context.Context, opts Options, podRows [
 
 // annotateReplicas fills in ready/desired for workload rows.
 func (c *Collector) annotateReplicas(ctx context.Context, namespace string, groups map[string]*model.Row) {
-	setReady := func(kind model.Kind, ns, name string, ready, desired int32) {
+	setReady := func(kind model.Kind, ns, name string, ready, desired int32, created metav1.Time) {
 		if g, ok := groups[Owner{Kind: kind, Name: name, Namespace: ns}.Key()]; ok {
 			g.Ready = fmt.Sprintf("%d/%d", ready, desired)
+			if !created.IsZero() {
+				g.Age = time.Since(created.Time)
+			}
 		}
 	}
 
 	if deps, err := c.kube.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for i := range deps.Items {
 			d := &deps.Items[i]
-			setReady(model.KindDeployment, d.Namespace, d.Name, d.Status.ReadyReplicas, desiredReplicas(d.Spec.Replicas))
+			setReady(model.KindDeployment, d.Namespace, d.Name, d.Status.ReadyReplicas, desiredReplicas(d.Spec.Replicas), d.CreationTimestamp)
 		}
 	}
 	if sts, err := c.kube.AppsV1().StatefulSets(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for i := range sts.Items {
 			s := &sts.Items[i]
-			setReady(model.KindStatefulSet, s.Namespace, s.Name, s.Status.ReadyReplicas, desiredReplicas(s.Spec.Replicas))
+			setReady(model.KindStatefulSet, s.Namespace, s.Name, s.Status.ReadyReplicas, desiredReplicas(s.Spec.Replicas), s.CreationTimestamp)
 		}
 	}
 	if ds, err := c.kube.AppsV1().DaemonSets(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for i := range ds.Items {
 			d := &ds.Items[i]
-			setReady(model.KindDaemonSet, d.Namespace, d.Name, d.Status.NumberReady, d.Status.DesiredNumberScheduled)
+			setReady(model.KindDaemonSet, d.Namespace, d.Name, d.Status.NumberReady, d.Status.DesiredNumberScheduled, d.CreationTimestamp)
 		}
 	}
 	if rs, err := c.kube.AppsV1().ReplicaSets(namespace).List(ctx, metav1.ListOptions{}); err == nil {
 		for i := range rs.Items {
 			r := &rs.Items[i]
-			setReady(model.KindReplicaSet, r.Namespace, r.Name, r.Status.ReadyReplicas, desiredReplicas(r.Spec.Replicas))
+			setReady(model.KindReplicaSet, r.Namespace, r.Name, r.Status.ReadyReplicas, desiredReplicas(r.Spec.Replicas), r.CreationTimestamp)
 		}
 	}
 }

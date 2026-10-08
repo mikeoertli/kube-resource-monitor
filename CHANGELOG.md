@@ -5,7 +5,34 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0] - Work in progress
+## [1.4.0] - Work in progress
+
+### Added
+
+- YAML settings with defaults for query, display, refresh, export, sorting
+  and notification options. CLI flags override settings. Workload and storage sort cycles are
+  configurable independently.
+- `--config`, `--edit-config` / `-e`, `--init-config`, and `--print-config`.
+  Existing config initialization opens a template/user diff without overwriting;
+  the user config is the editable destination. Printing emits commented defaults
+  without reading credentials.
+- `-v` and `--version` aliases for `krm version`.
+
+### Changed
+
+- Requests, limits, age and restarts are enabled by default; disable them with
+  `--requests=false`, `--limits=false`, `--show-age=false`, `--show-restarts=false`.
+- Default workload/node sort cycle is CPU %, memory %, CPU, memory.
+- TUI keys: `q` quits, `r` toggles requests, `v` reverses sort. `Q` remains a quit alias.
+
+### Fixed
+
+- Enabling containers in the TUI automatically expands the fetched breakdown.
+  Storage no longer advertises the unsupported containers control.
+- Narrow layouts preserve requested numeric columns, hiding bars when necessary.
+- Workload restart totals and workload/container age metadata are populated.
+
+## [1.3.0] - 2026-10-07
 
 ### Added
 

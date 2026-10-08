@@ -186,7 +186,7 @@ limits show `n/a` and a neutral dotted track. Missing usage shows `unknown`.
 Unbounded storage never appears as a full bar merely because it has usage.
 
 Storage defaults to **USE% descending**, with unknown percentages last. Press
-`s` to cycle **use% → kind → request → used**, and `r` to reverse direction.
+`s` to cycle **use% → kind → request → used**, and `v` to reverse direction.
 `request` and `used` sort by bytes; CPU and memory sorts are unavailable in this
 view. You can also choose a sort explicitly:
 
@@ -220,9 +220,10 @@ krm --only-problems             # only rows at or above --threshold (default 85%
 </p>
 
 ```sh
-krm --requests --limits    # show the declared values alongside usage
+krm --requests=false --limits=false # hide declared values (shown by default)
 krm -c                     # break pods down by container
-krm --show-restarts --show-age --show-labels
+krm --show-restarts=false --show-age=false # hide metadata (shown by default)
+krm --show-labels
 krm --bars=false           # numbers only
 krm --bar-style ascii      # for terminals that mangle box drawing
 ```
@@ -280,19 +281,21 @@ Keys:
 - `↵` expand 
 - `t` grouping 
 - `s` sort 
-- `r` reverse 
+- `v` reverse
 - `/` filter 
 - `c` containers 
-- `q` requests column 
+- `r` requests column
 - `l` limits column
 - `b` bars
 - `!` only hot rows 
 - `a` all namespaces 
 - `p` pause 
 - `+`/`-` refresh rate 
-- `Q` quit.
+- `q` quit.
 
-Note that lowercase `q` toggles a column; quitting is `Q` or `ctrl+c`.
+`q`, `Q`, and `ctrl+c` quit. `r` toggles requests and `v` reverses sort.
+Enabling `c` fetches and expands container rows under their pods; disable it to
+hide them. This control applies to workload/pod/node views.
 
 ### Notifying
 
@@ -367,6 +370,62 @@ krm top --demo -A
 The demo cluster deliberately includes the awkward cases: a workload with no
 limits, a container over its limit, an unscraped pod, and a nearly-full volume.
 
+## Settings
+
+krm reads `$XDG_CONFIG_HOME/krm/krm_config.yaml`, or
+`~/.config/krm/krm_config.yaml`. Override the path with `--config` or `KRM_CONFIG`.
+A missing default file uses built-in defaults. CLI flags take precedence.
+
+```sh
+krm --init-config       # create a commented settings template
+krm --edit-config       # edit in $EDITOR, then validate and exit (also -e)
+krm --print-config      # print the complete commented defaults; credentials are never read
+krm --config ./krm.yaml # use a specific settings file
+krm -v                 # version information (also --version or krm version)
+```
+
+If the file already exists, `--init-config` opens a diff with the new template
+on the left and your writable config on the right. The template is read-only,
+and your file is preserved until you edit it. Defaults to `code --wait --diff`
+when available, otherwise `vim -d`. Set `KRM_DIFF_EDITOR` to a command such as
+`"code --wait --diff"` or `"vim -d"`; it must wait until the editor closes.
+`--edit-config` uses `$EDITOR` (default `vi`). Editor arguments support quoted
+paths and arguments and execute directly, without shell expansion.
+
+All normal persistent flags have YAML settings using underscores, such as
+`all_namespaces`, `group_by`, `no_color`, `bar_style`, `include_missing`, `csv`,
+and `request_timeout`. Notification defaults live under `notify` (rules, repeat,
+hold duration, hysteresis, recovery and stdout options). One-time installation,
+version/config actions, config-path selection, and demo mode
+are excluded. Authentication stays in kubeconfig. Invalid or unknown settings
+fail before connecting to the cluster; editing remains available for repairs.
+
+```yaml
+requests: true
+limits: true
+show_age: true
+show_restarts: true
+containers: false
+interval: 5s
+storage_interval: 1m
+sort_by: "" # empty starts with the first entry in the active cycle
+sort_order: ["cpu%", "mem%", cpu, memory]
+storage_sort_order: ["use%", kind, request, used]
+notify:
+  on: ["cpu>85%", "mem>90%"]
+  for: 2m
+  repeat: 30m
+  hysteresis: 0.1
+  stdout: false
+```
+
+The default sort is CPU %. Each press of `s` advances to memory %, CPU, memory,
+and back to CPU %. Set `sort_order` to the desired sequence; `sort_by` or
+`--sort-by` can choose a different initial key. Storage uses its own order.
+`storage_interval` controls its slower default; explicit `--interval` overrides
+it. With narrow terminals, bars give way to numeric columns while your column
+preferences stay enabled.
+
 ## Versioning
 
 `VERSION` holds the current development version. Record changes under that
@@ -376,14 +435,14 @@ date (`YYYY-MM-DD`) and add a new `## [<VERSION>] - Work in progress` section.
 No tag or official release is needed for this workflow.
 
 ```sh
-krm version              # krm 1.3.0 (commit abcdef1, built ..., go1.24.7, darwin/arm64)
-krm version --short      # 1.3.0
+krm version              # krm 1.4.0 (commit abcdef1, built ..., go1.24.7, darwin/arm64)
+krm version --short      # 1.4.0
 krm version -o json      # machine-readable, including where the version came from
 ```
 
 The version resolves from whichever source is available: `-ldflags` when built
 through the Makefile (using `VERSION`), the module version when installed with
-`go install ...@v1.3.0`, and the git revision when built from a checkout. A
+`go install ...@v1.4.0`, and the git revision when built from a checkout. A
 build from a modified tree is marked `-dirty`. The `source` field in the JSON
 output says which route a given binary took, which is the quickest way to
 explain a version that reads `dev`.
@@ -417,7 +476,7 @@ cloning to generate it; every dependency version is already pinned in
 [`mikeoertli/homebrew-tap`](https://github.com/mikeoertli/homebrew-tap) when a
 stable `vMAJOR.MINOR.PATCH` tag is pushed. Keep the tag aligned with `VERSION`
 and include the workflow in the tagged commit. For the current version, the
-release tag is `v1.3.0`.
+release tag is `v1.4.0`.
 
 The workflow uses the **TAP_DISPATCH_TOKEN** repository secret to trigger the
 tap's release updater for `krm`. The token needs **Actions: Read and write**

@@ -92,7 +92,7 @@ type Watcher struct {
 
 // NewWatcher builds a watcher.
 func NewWatcher(cfg Config) *Watcher {
-	if cfg.Hysteresis <= 0 {
+	if cfg.Hysteresis < 0 {
 		cfg.Hysteresis = DefaultConfig().Hysteresis
 	}
 	return &Watcher{cfg: cfg, state: map[string]*alertState{}, now: time.Now}

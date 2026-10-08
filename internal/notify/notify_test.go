@@ -298,3 +298,22 @@ func TestAppleScriptStringEscapes(t *testing.T) {
 		t.Errorf("backslash was not escaped: %s", got)
 	}
 }
+
+func TestZeroHysteresisAllowsRecoveryImmediatelyBelowThreshold(t *testing.T) {
+	rule, err := ParseRule("cpu>80%")
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := DefaultConfig()
+	config.Rules = []Rule{rule}
+	config.Hysteresis = 0
+	watcher := NewWatcher(config)
+	row := &model.Row{Kind: model.KindPod, Name: "web", Namespace: "prod", Usage: model.Usage{Used: model.Amounts{CPUMilli: 850}, Limits: model.Amounts{CPUMilli: 1000}, HasCPULimit: true, UsedKnown: true}}
+	if alerts := watcher.Evaluate([]*model.Row{row}); len(alerts) != 1 || !alerts[0].Firing {
+		t.Fatal("expected breach")
+	}
+	row.Usage.Used.CPUMilli = 799
+	if alerts := watcher.Evaluate([]*model.Row{row}); len(alerts) != 1 || alerts[0].Firing {
+		t.Fatal("zero hysteresis should recover just below the threshold")
+	}
+}

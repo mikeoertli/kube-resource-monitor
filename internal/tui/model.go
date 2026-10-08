@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mikeoertli/kube-resource-monitor/internal/inventory"
 	"github.com/mikeoertli/kube-resource-monitor/internal/model"
@@ -37,8 +38,10 @@ type Config struct {
 	Namespace   string
 	Source      string
 
-	Sort       model.SortKey
-	Descending bool
+	Sort             model.SortKey
+	Descending       bool
+	SortOrder        []model.SortKey
+	StorageSortOrder []model.SortKey
 
 	// Watcher, when set, evaluates threshold rules each refresh and surfaces a
 	// banner. Notification delivery stays outside the UI.
@@ -77,9 +80,10 @@ type Model struct {
 	tbl *render.Table
 	// generation guards against a slow in-flight collection landing after the
 	// user has already changed the query it was answering.
-	generation     int
-	activeMenu     string
-	menuGeneration int
+	generation       int
+	activeMenu       string
+	menuGeneration   int
+	expandContainers bool
 }
 
 // New builds the model.
@@ -88,7 +92,7 @@ func New(cfg Config) *Model {
 		cfg.Interval = 5 * time.Second
 	}
 	if cfg.Sort == "" {
-		cfg.Sort = model.SortCPU
+		cfg.Sort = model.SortCPUPercent
 	}
 	ti := textinput.New()
 	ti.Prompt = "/"
@@ -96,11 +100,12 @@ func New(cfg Config) *Model {
 	ti.CharLimit = 128
 
 	m := &Model{
-		cfg:      cfg,
-		expanded: map[string]bool{},
-		filter:   ti,
-		tbl:      render.NewTable(cfg.Palette, cfg.Render),
-		started:  time.Now(),
+		cfg:              cfg,
+		expandContainers: cfg.Options.IncludeContainers && !cfg.Render.Storage,
+		expanded:         map[string]bool{},
+		filter:           ti,
+		tbl:              render.NewTable(cfg.Palette, cfg.Render),
+		started:          time.Now(),
 	}
 	m.filter.SetValue(cfg.Options.NamePattern)
 	return m
@@ -185,6 +190,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.snapshot = msg.snap
 		m.lastRefresh = time.Now()
 		m.rebuild()
+		if m.expandContainers {
+			m.expandContainers = false
+			m.setAllExpanded(true)
+		}
 		return m, m.evaluateAlerts()
 
 	case alertsMsg:
@@ -281,10 +290,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Quit):
 		return m, tea.Quit
 
-	case msg.String() == "q":
-		// Lowercase q toggles the requests column; quitting is Q or ctrl+c.
-		// In a view where you are constantly toggling columns, having q drop
-		// you out of the program would be a trap.
+	case key.Matches(msg, keys.Requests):
 		m.cfg.Render.ShowRequests = !m.cfg.Render.ShowRequests
 		m.rebuildTable()
 		return m, nil
@@ -319,6 +325,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.ExpandAll):
 		m.setAllExpanded(true)
 	case key.Matches(msg, keys.CollapseAll):
+		m.expandContainers = false
 		m.setAllExpanded(false)
 
 	case key.Matches(msg, keys.Sort):
@@ -348,7 +355,15 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case key.Matches(msg, keys.Containers):
+		if m.cfg.Render.Storage {
+			return m, nil
+		}
 		m.cfg.Options.IncludeContainers = !m.cfg.Options.IncludeContainers
+		m.expandContainers = m.cfg.Options.IncludeContainers
+		if !m.cfg.Options.IncludeContainers && m.cfg.Options.GroupBy == inventory.GroupContainer {
+			m.cfg.Options.GroupBy = inventory.GroupPod
+			m.afterGroupChange()
+		}
 		m.generation++
 		m.loading = true
 		return m, m.collect()
@@ -421,10 +436,7 @@ func adjustInterval(cur time.Duration, dir int) time.Duration {
 
 func (m *Model) cycleSort() {
 	cur := m.cfg.Sort
-	choices := model.AllSortKeys
-	if m.cfg.Render.Storage {
-		choices = model.StorageSortKeys
-	}
+	choices := m.sortChoices()
 	for i, k := range choices {
 		if k == cur {
 			m.cfg.Sort = choices[(i+1)%len(choices)]
@@ -460,14 +472,15 @@ func (m *Model) afterGroupChange() {
 	// Sorting by CPU in a volume view would leave every row at zero.
 	if m.cfg.Render.Storage {
 		if !wasStorage || !model.IsStorageSortKey(m.cfg.Sort) {
-			m.cfg.Sort = model.SortStoragePercent
+			m.cfg.Sort = m.storageSortChoices()[0]
 		}
 		if m.cfg.Sort == model.SortStorage {
 			m.cfg.Sort = model.SortStorageUsed
 		}
 	} else if m.cfg.Sort == model.SortStoragePercent || m.cfg.Sort == model.SortStorageRequest || m.cfg.Sort == model.SortStorageUsed {
-		m.cfg.Sort = model.SortCPU
+		m.cfg.Sort = m.normalSortChoices()[0]
 	}
+	m.expandContainers = m.cfg.Options.IncludeContainers && !m.cfg.Render.Storage
 	m.expanded = map[string]bool{}
 	m.cursor = 0
 	m.offset = 0
@@ -480,9 +493,6 @@ func (m *Model) afterGroupChange() {
 func (m *Model) autoColumns() {
 	switch {
 	case m.width < 80:
-		m.cfg.Render.ShowBars = false
-		m.cfg.Render.ShowRequests = false
-		m.cfg.Render.ShowLimits = false
 		m.cfg.Render.BarWidth = 6
 	case m.width < 110:
 		m.cfg.Render.BarWidth = 8
@@ -495,7 +505,19 @@ func (m *Model) autoColumns() {
 }
 
 func (m *Model) rebuildTable() {
-	m.tbl = render.NewTable(m.cfg.Palette, m.cfg.Render)
+	options := m.cfg.Render
+	m.tbl = render.NewTable(m.cfg.Palette, options)
+	if options.ShowBars && m.width > 0 {
+		header, lines := m.tbl.Lines(m.flat)
+		wide := lipgloss.Width(header) > m.width
+		for _, line := range lines {
+			wide = wide || lipgloss.Width(line) > m.width
+		}
+		if wide {
+			options.ShowBars = false
+			m.tbl = render.NewTable(m.cfg.Palette, options)
+		}
+	}
 }
 
 func (m *Model) rebuild() {
@@ -504,6 +526,13 @@ func (m *Model) rebuild() {
 	}
 	model.Sort(m.snapshot.Rows, m.cfg.Sort, m.cfg.Descending)
 	m.flat = model.Flatten(m.snapshot.Rows, func(k string) bool { return m.expanded[k] })
+	if m.cursor >= len(m.flat) {
+		m.cursor = len(m.flat) - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	m.rebuildTable()
 	m.clampScroll()
 }
 
@@ -589,4 +618,23 @@ func intervalLabel(d time.Duration) string {
 		return fmt.Sprintf("%dm", int(d.Minutes()))
 	}
 	return strings.TrimSuffix(d.String(), "0s")
+}
+
+func (m *Model) normalSortChoices() []model.SortKey {
+	if len(m.cfg.SortOrder) > 0 {
+		return m.cfg.SortOrder
+	}
+	return model.AllSortKeys
+}
+func (m *Model) storageSortChoices() []model.SortKey {
+	if len(m.cfg.StorageSortOrder) > 0 {
+		return m.cfg.StorageSortOrder
+	}
+	return model.StorageSortKeys
+}
+func (m *Model) sortChoices() []model.SortKey {
+	if m.cfg.Render.Storage {
+		return m.storageSortChoices()
+	}
+	return m.normalSortChoices()
 }

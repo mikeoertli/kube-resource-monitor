@@ -7,6 +7,7 @@ import (
 	"github.com/mikeoertli/kube-resource-monitor/internal/model"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"time"
 )
 
 // collectEphemeral joins pod storage budgets with the kubelet's disk accounting.
@@ -37,6 +38,14 @@ func (c *Collector) collectEphemeral(ctx context.Context, opts Options, snap *Sn
 			continue
 		}
 		row := &model.Row{Kind: model.KindEphemeral, Name: pod.Name, Namespace: pod.Namespace, Node: pod.Spec.NodeName, Labels: pod.Labels, Phase: string(pod.Status.Phase), Authoritative: true, MetricsMissing: true}
+		for _, statuses := range [][]corev1.ContainerStatus{pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses} {
+			for _, status := range statuses {
+				row.Restarts += status.RestartCount
+			}
+		}
+		if !pod.CreationTimestamp.IsZero() {
+			row.Age = time.Since(pod.CreationTimestamp.Time)
+		}
 		d := effectivePodResources(&pod.Spec)
 		row.Usage.Requests.StorageBytes = d.Requests.StorageBytes
 		row.Usage.Limits.StorageBytes = d.Limits.StorageBytes
@@ -53,6 +62,7 @@ func (c *Collector) collectEphemeral(ctx context.Context, opts Options, snap *Sn
 				continue
 			}
 			child := &model.Row{Kind: model.KindVolume, Name: pod.Name + "/" + v.Name, Namespace: pod.Namespace, Node: pod.Spec.NodeName, MetricsMissing: true}
+			child.Age = row.Age
 			if v.EmptyDir.SizeLimit != nil {
 				child.Usage.HasStorageLimit = true
 				child.Usage.Limits.StorageBytes = v.EmptyDir.SizeLimit.Value()

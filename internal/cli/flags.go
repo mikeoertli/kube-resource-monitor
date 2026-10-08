@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -56,11 +57,24 @@ type globalFlags struct {
 
 	// demo runs against synthetic data, so the UI can be exercised without a
 	// cluster (and so a bug report can be reproduced without one).
-	demo bool
+	demo                                             bool
+	configPath                                       string
+	editConfig, initConfig, printConfig, showVersion bool
+	configured                                       map[string]bool
+	sortOrder, storageSortOrder                      []string
+	storageInterval                                  time.Duration
 }
 
 func (f *globalFlags) register(cmd *cobra.Command) {
 	p := cmd.PersistentFlags()
+	p.StringVar(&f.configPath, "config", configPath(), "settings file (default: $XDG_CONFIG_HOME/krm/krm_config.yaml or ~/.config/krm/krm_config.yaml)")
+	p.BoolVarP(&f.editConfig, "edit-config", "e", false, "edit settings with $EDITOR and validate")
+	p.BoolVar(&f.initConfig, "init-config", false, "create settings; open template/config diff when the file already exists")
+	p.BoolVar(&f.printConfig, "print-config", false, "print commented defaults without reading config or credentials")
+	p.BoolVarP(&f.showVersion, "version", "v", false, "print version information and exit")
+	p.StringSliceVar(&f.sortOrder, "sort-order", []string{"cpu%", "mem%", "cpu", "memory"}, "sort cycle for workload/node views")
+	p.StringSliceVar(&f.storageSortOrder, "storage-sort-order", []string{"use%", "kind", "request", "used"}, "sort cycle for storage views")
+	p.DurationVar(&f.storageInterval, "storage-interval", time.Minute, "default storage refresh interval")
 
 	p.StringVar(&f.kubeconfig, "kubeconfig", "", "path to the kubeconfig file (default: $KUBECONFIG, then ~/.kube/config)")
 	p.StringVar(&f.kubeContext, "context", "", "kubeconfig context to use (default: current-context)")
@@ -76,19 +90,19 @@ func (f *globalFlags) register(cmd *cobra.Command) {
 	p.StringVarP(&f.groupBy, "group-by", "g", "workload", "workload, pod, container, node, namespace, storage, deployment, statefulset, daemonset, job")
 
 	p.BoolVarP(&f.containers, "containers", "c", false, "break pods down by container")
-	p.BoolVar(&f.requests, "requests", false, "show the requests columns")
-	p.BoolVar(&f.limits, "limits", false, "show the limits columns")
+	p.BoolVar(&f.requests, "requests", true, "show the requests columns")
+	p.BoolVar(&f.limits, "limits", true, "show the limits columns")
 	p.BoolVar(&f.bars, "bars", true, "draw usage bars")
 	p.StringVar(&f.barStyle, "bar-style", "blocks", "blocks, braille, or ascii")
 	p.BoolVar(&f.labels, "show-labels", false, "show a labels column")
-	p.BoolVar(&f.age, "show-age", false, "show an age column")
-	p.BoolVar(&f.restarts, "show-restarts", false, "show a restarts column")
+	p.BoolVar(&f.age, "show-age", true, "show an age column")
+	p.BoolVar(&f.restarts, "show-restarts", true, "show a restarts column")
 	p.BoolVar(&f.includeMissing, "include-missing", false, "include pods the metrics API has no sample for")
 
 	p.BoolVar(&f.onlyProblems, "only-problems", false, "show only rows at or above --threshold")
 	p.Float64Var(&f.threshold, "threshold", 0.85, "fraction of the limit that counts as a problem")
 
-	p.StringVar(&f.sortBy, "sort-by", "cpu", "cpu, memory, cpu%, mem%, name, restarts; storage: use%, kind, request, used")
+	p.StringVar(&f.sortBy, "sort-by", "cpu%", "cpu, memory, cpu%, mem%, name, restarts; storage: use%, kind, request, used")
 	p.BoolVar(&f.reverse, "reverse", false, "reverse the sort order")
 
 	p.StringVar(&f.csvDir, "csv", "", "append samples to one CSV per resource in this output directory")
@@ -117,12 +131,20 @@ type resolved struct {
 }
 
 func parseSortKey(s string) (model.SortKey, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if strings.HasPrefix(s, "% ") {
+		s = strings.TrimSpace(strings.TrimPrefix(s, "% ")) + "%"
+	}
 	switch k := model.SortKey(s); k {
 	case model.SortName, model.SortCPU, model.SortMemory, model.SortStorage,
 		model.SortCPUPercent, model.SortMemPercent, model.SortRestarts, model.SortStoragePercent, model.SortKind, model.SortStorageRequest, model.SortStorageUsed:
 		return k, nil
 	case "storage%", "used%":
 		return model.SortStoragePercent, nil
+	case "%cpu":
+		return model.SortCPUPercent, nil
+	case "%mem", "%memory", "memory%":
+		return model.SortMemPercent, nil
 	case "mem":
 		return model.SortMemory, nil
 	case "cpu-percent", "cpupercent":
@@ -130,7 +152,7 @@ func parseSortKey(s string) (model.SortKey, error) {
 	case "mem-percent", "mempercent":
 		return model.SortMemPercent, nil
 	case "":
-		return model.SortCPU, nil
+		return model.SortCPUPercent, nil
 	default:
 		return "", fmt.Errorf("unknown --sort-by %q (want cpu, memory, storage, cpu%%, mem%%, name, restarts, use%%, kind, request, or used)", s)
 	}

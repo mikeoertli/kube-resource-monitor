@@ -64,9 +64,7 @@ hovering right at the line from flapping between firing and resolved.`,
 			cfg.Repeat = repeat
 			cfg.MinDuration = minDuration
 			cfg.NotifyResolved = !noResolved
-			if hysteresis > 0 {
-				cfg.Hysteresis = hysteresis
-			}
+			cfg.Hysteresis = hysteresis
 			watcher := notify.NewWatcher(cfg)
 
 			var notifier notify.Notifier

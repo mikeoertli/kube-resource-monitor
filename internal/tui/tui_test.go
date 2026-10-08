@@ -191,36 +191,27 @@ func TestReverseSortFlipsOrder(t *testing.T) {
 	deliver(m, m.collect())
 
 	first := m.flat[0].Row.Name
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
 	if m.flat[0].Row.Name == first {
 		t.Errorf("reversing should change which row is first (still %q)", first)
 	}
 }
 
-// Lowercase q toggles a column. Quitting is Q or ctrl+c, because in a view
-// where you constantly toggle columns, q-to-quit would be a trap.
-func TestLowercaseQTogglesRequestsAndDoesNotQuit(t *testing.T) {
-	stub := &stubCollector{snap: testSnapshot()}
-	m := newTestModel(t, stub)
-	deliver(m, m.collect())
-
+func TestRTogglesRequestsAndQQuits(t *testing.T) {
+	m := newTestModel(t, &stubCollector{snap: testSnapshot()})
 	before := m.cfg.Render.ShowRequests
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	if m.cfg.Render.ShowRequests == before {
-		t.Error("q should toggle the requests column")
+		t.Fatal("r did not toggle requests")
 	}
-	if cmd != nil {
-		if _, isQuit := cmd().(tea.QuitMsg); isQuit {
-			t.Fatal("lowercase q must not quit")
+	for _, key := range []rune{'q', 'Q'} {
+		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+		if cmd == nil {
+			t.Fatal("quit has no command")
 		}
-	}
-
-	_, quitCmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'Q'}})
-	if quitCmd == nil {
-		t.Fatal("Q should quit")
-	}
-	if _, isQuit := quitCmd().(tea.QuitMsg); !isQuit {
-		t.Error("Q should produce a quit message")
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Fatalf("%c did not quit", key)
+		}
 	}
 }
 
@@ -374,8 +365,8 @@ func TestNarrowTerminalDropsOptionalColumns(t *testing.T) {
 
 	m.Update(tea.WindowSizeMsg{Width: 70, Height: 24})
 
-	if m.cfg.Render.ShowBars || m.cfg.Render.ShowLimits || m.cfg.Render.ShowRequests {
-		t.Error("a 70-column terminal should drop bars and the request/limit columns")
+	if m.tbl.Opts.ShowBars || !m.cfg.Render.ShowLimits || !m.cfg.Render.ShowRequests {
+		t.Error("a narrow terminal should preserve requested numeric columns and hide only bars")
 	}
 }
 
@@ -495,9 +486,9 @@ func TestSnapshotExport(t *testing.T) {
 func TestMenuHighlightFollowsActionAndExpires(t *testing.T) {
 	m := newTestModel(t, &stubCollector{snap: testSnapshot()})
 	m.cfg.Palette.MenuSelected = lipgloss.NewStyle().Transform(func(s string) string { return "<selected>" + s + "</selected>" })
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	first := m.menuGeneration
-	if !strings.Contains(m.footer(), "<selected> q requests </selected>") {
+	if !strings.Contains(m.footer(), "<selected> r requests </selected>") {
 		t.Fatalf("missing selected menu item: %s", m.footer())
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
@@ -581,7 +572,64 @@ func TestStorageSortCycleStaysOnVisibleMetrics(t *testing.T) {
 	}
 	m.cfg.Options.GroupBy = inventory.GroupWorkload
 	m.afterGroupChange()
-	if m.cfg.Sort != model.SortCPU {
+	if m.cfg.Sort != model.SortCPUPercent {
 		t.Fatal("storage percentage leaked into workload view")
+	}
+}
+
+func TestContainersToggleExpandsFetchedBreakdown(t *testing.T) {
+	snap := testSnapshot()
+	parent := snap.Rows[0].Children[0]
+	parent.Children = []*model.Row{{Kind: model.KindContainer, Name: "app", Namespace: "prod", Usage: usage(100, 500, 100, 500)}}
+	stub := &stubCollector{snap: snap}
+	m := newTestModel(t, stub)
+	deliver(m, m.collect())
+	if strings.Contains(m.View(), "app") {
+		t.Fatal("fixture unexpectedly expanded")
+	}
+	_, cmd := m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	deliver(m, cmd)
+	if !stub.lastCall().IncludeContainers || !strings.Contains(m.View(), "app") {
+		t.Fatal("container toggle did not reveal containers")
+	}
+	parent.Children = nil
+	m.cursor = len(m.flat) - 1
+	_, cmd = m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	deliver(m, cmd)
+	if stub.lastCall().IncludeContainers || strings.Contains(m.View(), "app") || m.cursor >= len(m.flat) {
+		t.Fatal("containers did not disappear")
+	}
+}
+
+func TestConfiguredSortCycles(t *testing.T) {
+	m := newTestModel(t, &stubCollector{snap: testSnapshot()})
+	m.cfg.SortOrder = []model.SortKey{model.SortMemPercent, model.SortCPU, model.SortCPUPercent}
+	m.cfg.Sort = model.SortMemPercent
+	for _, want := range []model.SortKey{model.SortCPU, model.SortCPUPercent, model.SortMemPercent} {
+		m.cycleSort()
+		if m.cfg.Sort != want {
+			t.Fatalf("got %s want %s", m.cfg.Sort, want)
+		}
+	}
+	m.cfg.StorageSortOrder = []model.SortKey{model.SortKind, model.SortStorageUsed}
+	m.cfg.Options.GroupBy = inventory.GroupStorage
+	m.afterGroupChange()
+	if m.cfg.Sort != model.SortKind {
+		t.Fatal("storage did not start with configured order")
+	}
+	m.cycleSort()
+	if m.cfg.Sort != model.SortStorageUsed {
+		t.Fatal("storage ignored configured cycle")
+	}
+}
+
+func TestDefaultWorkloadSortCycle(t *testing.T) {
+	m := newTestModel(t, &stubCollector{snap: testSnapshot()})
+	m.cfg.Sort = model.SortCPUPercent
+	for _, want := range []model.SortKey{model.SortMemPercent, model.SortCPU, model.SortMemory, model.SortCPUPercent} {
+		m.cycleSort()
+		if m.cfg.Sort != want {
+			t.Fatalf("got %s want %s", m.cfg.Sort, want)
+		}
 	}
 }

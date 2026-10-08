@@ -45,12 +45,12 @@ var keys = keyMap{
 	ExpandAll:   key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "expand all")),
 	CollapseAll: key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "collapse all")),
 	Sort:        key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "cycle sort")),
-	SortReverse: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reverse sort")),
+	SortReverse: key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "reverse sort")),
 	Group:       key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "cycle grouping")),
 	Filter:      key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 	ClearFilter: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "clear filter")),
 	Containers:  key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "containers")),
-	Requests:    key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "requests column")),
+	Requests:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "requests column")),
 	Limits:      key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "limits column")),
 	Bars:        key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "bars")),
 	Pause:       key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "pause")),
@@ -60,7 +60,7 @@ var keys = keyMap{
 	Namespaces:  key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "all namespaces")),
 	OnlyProblem: key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "only hot rows")),
 	Help:        key.NewBinding(key.WithKeys("?", "h"), key.WithHelp("?", "help")),
-	Quit:        key.NewBinding(key.WithKeys("ctrl+c", "Q"), key.WithHelp("Q", "quit")),
+	Quit:        key.NewBinding(key.WithKeys("ctrl+c", "q", "Q"), key.WithHelp("q", "quit")),
 }
 
 // helpGroups drives the help overlay.

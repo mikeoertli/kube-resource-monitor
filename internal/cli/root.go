@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -84,7 +83,9 @@ func Execute() int {
 	return 0
 }
 
-func newRootCommand() *cobra.Command {
+func newRootCommand() *cobra.Command { cmd, _ := newRootWithFlags(); return cmd }
+
+func newRootWithFlags() (*cobra.Command, *globalFlags) {
 	f := &globalFlags{}
 
 	root := &cobra.Command{
@@ -94,6 +95,40 @@ func newRootCommand() *cobra.Command {
 		Example: rootExamples,
 
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			actions := 0
+			for _, enabled := range []bool{f.showVersion, f.editConfig, f.initConfig, f.printConfig} {
+				if enabled {
+					actions++
+				}
+			}
+			if actions > 1 {
+				return fmt.Errorf("choose one of --version, --edit-config, --init-config, or --print-config")
+			}
+			if f.showVersion {
+				cmd.RunE = newVersionCommand(f).RunE
+				return nil
+			}
+			if f.editConfig || f.initConfig || f.printConfig {
+				cmd.RunE = func(cmd *cobra.Command, _ []string) error { return f.configAction(cmd) }
+				return nil
+			}
+			if cmd.Name() == "version" {
+				if cmd.Flags().Changed("csv") {
+					return fmt.Errorf("--csv is not supported by version")
+				}
+				return nil
+			}
+			if err := f.loadConfig(cmd); err != nil {
+				return err
+			}
+			if err := f.validatePreferences(); err != nil {
+				return err
+			}
+			if err := validateNotifyPreferences(cmd.Root()); err != nil {
+				return err
+			}
+			group, _ := inventory.ParseGroupBy(f.groupBy)
+			f.groupBy = string(group)
 			for parent := cmd; parent != nil; parent = parent.Parent() {
 				if parent.Name() == "storage" {
 					if cmd.Flags().Changed("group-by") && f.groupBy != parent.Name() {
@@ -101,7 +136,7 @@ func newRootCommand() *cobra.Command {
 					}
 					f.groupBy = parent.Name()
 					if !cmd.Flags().Changed("interval") {
-						f.interval = time.Minute
+						f.interval = f.storageInterval
 					}
 					break
 				}
@@ -139,11 +174,18 @@ func newRootCommand() *cobra.Command {
 			if cmd.Flags().Changed("type") && f.groupBy != "storage" {
 				return fmt.Errorf("--type requires krm storage or --group-by storage")
 			}
-			if f.groupBy == "storage" && !cmd.Flags().Changed("sort-by") {
-				f.sortBy = "use%"
+			if !cmd.Flags().Changed("sort-by") {
+				if f.groupBy == "storage" {
+					key, _ := parseSortKey(f.sortBy)
+					if !f.configured["sort-by"] || f.sortBy == "" || !model.IsStorageSortKey(key) {
+						f.sortBy = f.storageSortOrder[0]
+					}
+				} else if !f.configured["sort-by"] || f.sortBy == "" {
+					f.sortBy = f.sortOrder[0]
+				}
 			}
 			if f.groupBy == "storage" && !cmd.Flags().Changed("interval") {
-				f.interval = time.Minute
+				f.interval = f.storageInterval
 			}
 			if cmd.Flags().Changed("csv") {
 				if f.csvDir == "" {
@@ -184,7 +226,7 @@ func newRootCommand() *cobra.Command {
 		newContextsCommand(f),
 		newVersionCommand(f),
 	)
-	return root
+	return root, f
 }
 
 // newNodeCommand provides the node view with the same automatic mode as krm.
@@ -220,7 +262,7 @@ pod breakdowns cover all namespaces. --filter matches node names.`,
 	top := newTopCommand(f)
 	top.Long = "Print one snapshot of node CPU and memory usage and exit. Supports -o json, -o csv, and -o prometheus."
 	watch := newWatchCommand(f)
-	watch.Long = "Monitor node CPU and memory usage in the interactive view. Press ? for controls and Q to quit."
+	watch.Long = "Monitor node CPU and memory usage in the interactive view. Press ? for controls and q to quit."
 	cmd.AddCommand(top, watch)
 	return cmd
 }
@@ -281,7 +323,7 @@ detection would be obscure.
 
 Press ? inside for the full key list. Highlights: t cycles grouping, s cycles
 sort, / filters, c toggles container breakdown, + and - change the refresh
-interval, p pauses, and Q quits.`,
+interval, p pauses, and q quits.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error { return runWatch(cmd, f) },
 	}
@@ -478,17 +520,19 @@ func runWatch(cmd *cobra.Command, f *globalFlags) error {
 	}
 
 	return tui.Run(tui.Config{
-		OnSnapshot:  func(snap *inventory.Snapshot) error { return exportCSV(f.csvDir, snap) },
-		Collector:   r.collector,
-		Options:     r.invOpts,
-		Render:      r.rendOpts,
-		Palette:     render.NewPalette(!f.noColor),
-		Interval:    f.interval,
-		ContextName: r.contextName,
-		Namespace:   r.namespace,
-		Source:      r.source,
-		Sort:        r.sortKey,
-		Descending:  !f.reverse,
+		OnSnapshot:       func(snap *inventory.Snapshot) error { return exportCSV(f.csvDir, snap) },
+		Collector:        r.collector,
+		Options:          r.invOpts,
+		Render:           r.rendOpts,
+		Palette:          render.NewPalette(!f.noColor),
+		Interval:         f.interval,
+		ContextName:      r.contextName,
+		Namespace:        r.namespace,
+		Source:           r.source,
+		Sort:             r.sortKey,
+		SortOrder:        normalSortOrder(f),
+		StorageSortOrder: storageSortOrder(f),
+		Descending:       !f.reverse,
 	})
 }
 
@@ -497,4 +541,13 @@ func exportCSV(dir string, snap *inventory.Snapshot) error {
 		return nil
 	}
 	return render.AppendResourceCSV(dir, snap.Taken, snap.Rows)
+}
+
+func normalSortOrder(f *globalFlags) []model.SortKey {
+	order, _ := parseSortOrder(f.sortOrder, false)
+	return order
+}
+func storageSortOrder(f *globalFlags) []model.SortKey {
+	order, _ := parseSortOrder(f.storageSortOrder, true)
+	return order
 }

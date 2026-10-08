@@ -9,6 +9,7 @@ import (
 
 	"github.com/mikeoertli/kube-resource-monitor/internal/metrics"
 	"github.com/mikeoertli/kube-resource-monitor/internal/model"
+	"time"
 )
 
 // demoCluster builds a synthetic cluster.
@@ -171,6 +172,14 @@ func demoCluster() (*fake.Clientset, *metrics.Mock) {
 			pod.Spec.Containers[0].Resources.Requests[corev1.ResourceEphemeralStorage] = q("1Gi")
 			pod.Spec.Containers[0].Resources.Limits[corev1.ResourceEphemeralStorage] = q("4Gi")
 			pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{Name: "cache", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{SizeLimit: quantityPtr(q("2Gi"))}}})
+		}
+	}
+	for i, object := range objs {
+		if metadata, ok := object.(metav1.Object); ok {
+			metadata.SetCreationTimestamp(metav1.NewTime(time.Now().Add(-time.Duration(24+i) * time.Hour)))
+		}
+		if pod, ok := object.(*corev1.Pod); ok && pod.Labels["app"] == "image-resizer" {
+			pod.Status.ContainerStatuses[0].RestartCount = 4
 		}
 	}
 	kc := fake.NewSimpleClientset(toRuntimeObjects(objs)...)

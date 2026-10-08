@@ -206,7 +206,7 @@ func (m *Model) footer() string {
 	if m.orienting() {
 		hints = p.Accent.Render("live view") +
 			p.Muted.Render(fmt.Sprintf(" · refreshing every %s · ", intervalLabel(m.cfg.Interval))) +
-			p.Value.Render("Q") + p.Muted.Render(" quit · ") +
+			p.Value.Render("q") + p.Muted.Render(" quit · ") +
 			p.Value.Render("?") + p.Muted.Render(" keys · ") +
 			p.Muted.Render("`krm top` prints one table instead")
 	}
@@ -248,6 +248,9 @@ func (m *Model) helpView() string {
 		b.WriteString(p.Accent.Render(g.Title))
 		b.WriteString("\n")
 		for _, bind := range g.Bindings {
+			if m.cfg.Render.Storage && bind.Help().Key == keys.Containers.Help().Key {
+				continue
+			}
 			h := bind.Help()
 			text := pad(h.Key, 10) + h.Desc
 			if m.activeMenu == h.Key {
@@ -339,16 +342,19 @@ func (m *Model) menuLines() []string {
 		label   string
 	}{
 		{keys.Help, "? help"}, {keys.Filter, "/ filter"}, {keys.Group, "t group"},
-		{keys.Sort, "s sort"}, {keys.Containers, "c containers"}, {keys.Pause, "p pause"}, {keys.Quit, "Q quit"},
+		{keys.Sort, "s sort"}, {keys.Containers, "c containers"}, {keys.Pause, "p pause"}, {keys.Quit, "q quit"},
 		{keys.Expand, "↵ expand"}, {keys.ExpandAll, "E expand all"}, {keys.CollapseAll, "C collapse all"},
-		{keys.Requests, "q requests"}, {keys.Limits, "l limits"}, {keys.Namespaces, "a namespaces"},
+		{keys.Requests, "r requests"}, {keys.Limits, "l limits"}, {keys.Namespaces, "a namespaces"},
 		{keys.OnlyProblem, "! hot"}, {keys.ClearFilter, "esc clear"},
-		{keys.SortReverse, "r reverse"}, {keys.Bars, "b bars"}, {keys.Refresh, "R refresh"},
+		{keys.SortReverse, "v reverse"}, {keys.Bars, "b bars"}, {keys.Refresh, "R refresh"},
 		{keys.Faster, "+ faster"}, {keys.Slower, "- slower"},
 	}
 	var lines []string
 	line := ""
 	for _, item := range items {
+		if m.cfg.Render.Storage && item.binding.Help().Key == keys.Containers.Help().Key {
+			continue
+		}
 		text := " " + item.label + " "
 		rendered := m.cfg.Palette.Muted.Render(text)
 		if m.activeMenu == item.binding.Help().Key {

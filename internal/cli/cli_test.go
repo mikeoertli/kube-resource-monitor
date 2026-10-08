@@ -24,7 +24,7 @@ func run(t *testing.T, args ...string) (string, error) {
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs(append([]string{"--demo", "--no-color"}, args...))
+	cmd.SetArgs(append([]string{"--demo", "--no-color", "--config", "/dev/null"}, args...))
 	err := cmd.ExecuteContext(context.Background())
 	return out.String(), err
 }

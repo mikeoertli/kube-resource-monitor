@@ -133,9 +133,11 @@ func (r *Row) Rollup() {
 	}
 	var sum Usage
 	missing := true
+	var restarts int32
 	for _, c := range r.Children {
 		c.Rollup()
 		sum = sum.Add(c.Usage)
+		restarts += c.Restarts
 		if !c.MetricsMissing {
 			missing = false
 		}
@@ -151,6 +153,7 @@ func (r *Row) Rollup() {
 		sum.Capacity = r.Usage.Capacity
 	}
 	sum.PreferCapacity = sum.PreferCapacity || r.Usage.PreferCapacity
+	r.Restarts = restarts
 	r.Usage = sum
 	r.MetricsMissing = missing
 	r.Usage.UsedKnown = !missing
@@ -174,7 +177,7 @@ const (
 )
 
 // AllSortKeys is the cycle order used by the TUI's sort toggle.
-var AllSortKeys = []SortKey{SortCPU, SortMemory, SortCPUPercent, SortMemPercent, SortName, SortRestarts, SortStorage}
+var AllSortKeys = []SortKey{SortCPUPercent, SortMemPercent, SortCPU, SortMemory}
 
 // StorageSortKeys excludes metrics which are not displayed in storage views.
 var StorageSortKeys = []SortKey{SortStoragePercent, SortKind, SortStorageRequest, SortStorageUsed}

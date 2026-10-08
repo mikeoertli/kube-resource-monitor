@@ -3,9 +3,9 @@
 Output assets/krm-demo.gif
 Require krm
 Set Shell bash
-Set Width 1440
+Set Width 1800
 Set Height 720
-Set FontSize 18
+Set FontSize 17
 Set FontFamily "Menlo"
 Set Theme "Catppuccin Mocha"
 Set Padding 20
@@ -37,12 +37,12 @@ Type "c"
 Sleep 1s
 Type "E"
 Sleep 4s
-Type "q"
+Type "r"
 Sleep 3s
 # Resume; change sort and show all namespaces.
 Type "C"
 Sleep 1s
-Type "q"
+Type "r"
 Sleep 1s
 Escape
 Sleep 1s
@@ -54,7 +54,7 @@ Type "a"
 Sleep 3s
 Type "!"
 Sleep 3s
-Type "Q"
+Type "q"
 Sleep 500ms
 Hide
 Type "clear"
@@ -67,7 +67,7 @@ Enter
 Sleep 4s
 Type "E"
 Sleep 2s
-Type "Q"
+Type "q"
 Sleep 500ms
 Hide
 Type "clear"
@@ -85,7 +85,7 @@ Type "s"
 Sleep 2s
 Type "s"
 Sleep 2s
-Type "Q"
+Type "q"
 Sleep 500ms
 Type "krm storage top --type pvc --demo -n prod"
 Enter
@@ -123,5 +123,5 @@ Type "krm --demo"
 Enter
 Sleep 4s
 Hide
-Type "Q"
+Type "q"
 Sleep 500ms

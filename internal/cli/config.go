@@ -3,19 +3,19 @@ package cli
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/mikeoertli/kube-resource-monitor/internal/inventory"
 	"github.com/mikeoertli/kube-resource-monitor/internal/model"
 	"github.com/mikeoertli/kube-resource-monitor/internal/notify"
 	"github.com/mikeoertli/kube-resource-monitor/internal/render"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"gopkg.in/yaml.v3"
 )
 
 func configPath() string {
@@ -27,7 +27,7 @@ func configPath() string {
 		home, _ := os.UserHomeDir()
 		root = filepath.Join(home, ".config")
 	}
-	return filepath.Join(root, "krm", "krm_config.yaml")
+	return filepath.Join(root, "krm", "krm_config.toml")
 }
 
 // These are one-time actions rather than saved runtime preferences. Authentication
@@ -66,90 +66,115 @@ func preferenceFlag(cmd *cobra.Command, name string) *pflag.Flag {
 		}
 		return nil
 	}
+	if name == "color" {
+		return nil
+	}
+	if name == "force-color" {
+		name = "color"
+	}
 	if !configPreference(name) {
 		return nil
 	}
 	return cmd.Root().PersistentFlags().Lookup(name)
 }
+
+// The CLI keeps --color for compatibility; settings name its forcing behavior.
+func configSettingName(flag string) string {
+	if flag == "color" {
+		return "force_color"
+	}
+	return strings.ReplaceAll(flag, "-", "_")
+}
+
 func configTemplate() ([]byte, error) {
 	cmd := newRootCommand()
-	root := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", HeadComment: "krm settings. Explicit CLI flags override these defaults.\nAuthentication stays in kubeconfig; never put credentials here."}
-	appendFlags := func(mapping *yaml.Node, flags *pflag.FlagSet, allowed func(string) bool) error {
+	var out bytes.Buffer
+	out.WriteString("# krm settings. Explicit CLI flags override these defaults.\n# Authentication stays in kubeconfig; never put credentials here.\n")
+	appendFlags := func(flags *pflag.FlagSet, allowed func(string) bool) error {
 		var firstErr error
 		flags.VisitAll(func(flag *pflag.Flag) {
 			if !allowed(flag.Name) || firstErr != nil {
 				return
 			}
-			key := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: strings.ReplaceAll(flag.Name, "-", "_"), HeadComment: flag.Usage + " (--" + flag.Name + ")"}
-			value := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: flag.DefValue}
+			usage := flag.Usage + " (--" + flag.Name + ")"
+			var value interface{} = flag.DefValue
 			if slice, ok := flag.Value.(pflag.SliceValue); ok {
 				values := slice.GetSlice()
 				if values == nil {
 					values = []string{}
 				}
-				firstErr = value.Encode(values)
+				value = values
 			} else {
 				switch flag.Value.Type() {
 				case "bool":
-					value.Tag = "!!bool"
+					value, firstErr = strconv.ParseBool(flag.DefValue)
 				case "float64":
-					value.Tag = "!!float"
+					value, firstErr = strconv.ParseFloat(flag.DefValue, 64)
 				}
 				if flag.Name == "sort-by" {
-					value.Value = ""
-					key.HeadComment = "Initial sort; empty uses the first entry of the active sort order (--sort-by)"
+					value = ""
+					usage = "Initial sort; empty uses the first entry of the active sort order (--sort-by)"
 				}
 			}
-			mapping.Content = append(mapping.Content, key, value)
+			if firstErr != nil {
+				return
+			}
+			fmt.Fprintf(&out, "\n# %s\n", strings.ReplaceAll(usage, "\n", "\n# "))
+			firstErr = toml.NewEncoder(&out).Encode(map[string]interface{}{configSettingName(flag.Name): value})
 		})
 		return firstErr
 	}
-	if err := appendFlags(root, cmd.PersistentFlags(), configPreference); err != nil {
+	if err := appendFlags(cmd.PersistentFlags(), configPreference); err != nil {
 		return nil, err
 	}
-	alerts := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-	if err := appendFlags(alerts, notifyFlags(cmd), notifyPreference); err != nil {
+	out.WriteString("\n# Defaults used only when you run krm notify.\n[notify]\n")
+	if err := appendFlags(notifyFlags(cmd), notifyPreference); err != nil {
 		return nil, err
 	}
-	root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "notify", HeadComment: "Defaults used only when you run krm notify."}, alerts)
-	var out bytes.Buffer
-	enc := yaml.NewEncoder(&out)
-	enc.SetIndent(2)
-	if err := enc.Encode(root); err != nil {
-		return nil, err
-	}
-	return out.Bytes(), enc.Close()
+	return out.Bytes(), nil
 }
 
-func setPreference(flag *pflag.Flag, value *yaml.Node) error {
+func setPreference(flag *pflag.Flag, value interface{}) error {
 	if slice, ok := flag.Value.(pflag.SliceValue); ok {
-		if value.Kind != yaml.SequenceNode {
-			return fmt.Errorf("must be a list")
+		items, ok := value.([]interface{})
+		if !ok {
+			return fmt.Errorf("must be an array")
 		}
 		values := []string{}
-		for _, item := range value.Content {
-			if item.Tag != "!!str" {
-				return fmt.Errorf("list entries must be strings")
+		for _, item := range items {
+			text, ok := item.(string)
+			if !ok {
+				return fmt.Errorf("array entries must be strings")
 			}
-			values = append(values, item.Value)
+			values = append(values, text)
 		}
 		return slice.Replace(values)
 	}
+	var text string
 	switch flag.Value.Type() {
 	case "bool":
-		if value.Tag != "!!bool" {
+		v, ok := value.(bool)
+		if !ok {
 			return fmt.Errorf("must be true or false")
 		}
+		text = strconv.FormatBool(v)
 	case "float64":
-		if value.Tag != "!!float" && value.Tag != "!!int" {
+		switch v := value.(type) {
+		case float64:
+			text = strconv.FormatFloat(v, 'g', -1, 64)
+		case int64:
+			text = strconv.FormatInt(v, 10)
+		default:
 			return fmt.Errorf("must be a number")
 		}
 	default:
-		if value.Kind != yaml.ScalarNode || value.Tag != "!!str" {
+		v, ok := value.(string)
+		if !ok {
 			return fmt.Errorf("must be a string")
 		}
+		text = v
 	}
-	return flag.Value.Set(value.Value)
+	return flag.Value.Set(text)
 }
 
 func (f *globalFlags) loadConfig(cmd *cobra.Command) error {
@@ -163,26 +188,19 @@ func (f *globalFlags) loadConfig(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("read config: %w", err)
 	}
-	var doc yaml.Node
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	if err := decoder.Decode(&doc); err == io.EOF {
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("decode config: %w", err)
-	}
-	if len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
-		return fmt.Errorf("config must be a YAML mapping of settings")
-	}
-	var extra yaml.Node
-	if err := decoder.Decode(&extra); err != io.EOF {
-		return fmt.Errorf("config must contain exactly one YAML document")
+	var mapping map[string]interface{}
+	if _, err := toml.Decode(string(data), &mapping); err != nil {
+		return fmt.Errorf("decode TOML config: %w", err)
 	}
 	seen := map[string]bool{}
 	f.configured = map[string]bool{}
 	fresh := newRootCommand()
-	apply := func(name string, value *yaml.Node) error {
+	apply := func(name string, value interface{}) error {
 		flag := preferenceFlag(cmd, name)
 		if flag == nil {
+			if name == "color" {
+				return fmt.Errorf("config setting color was renamed to force_color; update your settings file")
+			}
 			return fmt.Errorf("unknown config setting %q", name)
 		}
 		if seen[name] {
@@ -200,22 +218,16 @@ func (f *globalFlags) loadConfig(cmd *cobra.Command) error {
 		}
 		return nil
 	}
-	mapping := doc.Content[0]
-	seenNotify := false
-	for i := 0; i < len(mapping.Content); i += 2 {
-		name := strings.ReplaceAll(mapping.Content[i].Value, "_", "-")
-		value := mapping.Content[i+1]
+	for rawName, value := range mapping {
+		name := strings.ReplaceAll(rawName, "_", "-")
 		if name == "notify" {
-			if seenNotify {
-				return fmt.Errorf("duplicate notify section")
+			alerts, ok := value.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("notify must be a TOML table")
 			}
-			seenNotify = true
-			if value.Kind != yaml.MappingNode {
-				return fmt.Errorf("notify must be a mapping")
-			}
-			for j := 0; j < len(value.Content); j += 2 {
-				key := "notify." + strings.ReplaceAll(value.Content[j].Value, "_", "-")
-				if err := apply(key, value.Content[j+1]); err != nil {
+			for rawKey, item := range alerts {
+				key := "notify." + strings.ReplaceAll(rawKey, "_", "-")
+				if err := apply(key, item); err != nil {
 					return err
 				}
 			}

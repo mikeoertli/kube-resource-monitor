@@ -67,7 +67,7 @@ type globalFlags struct {
 
 func (f *globalFlags) register(cmd *cobra.Command) {
 	p := cmd.PersistentFlags()
-	p.StringVar(&f.configPath, "config", configPath(), "settings file (default: $XDG_CONFIG_HOME/krm/krm_config.yaml or ~/.config/krm/krm_config.yaml)")
+	p.StringVar(&f.configPath, "config", configPath(), "settings file (default: $XDG_CONFIG_HOME/krm/krm_config.toml or ~/.config/krm/krm_config.toml)")
 	p.BoolVarP(&f.editConfig, "edit-config", "e", false, "edit settings with $EDITOR and validate")
 	p.BoolVar(&f.initConfig, "init-config", false, "create settings; open template/config diff when the file already exists")
 	p.BoolVar(&f.printConfig, "print-config", false, "print commented defaults without reading config or credentials")

@@ -85,7 +85,8 @@ Install VHS, ttyd, ffmpeg, and Go on your PATH (on macOS: `brew install vhs go`)
 The tape uses Menlo; install it or adjust FontFamily for your platform. Then run
 `make demo-gif` from the repository root. VHS may download its browser on first
 use. The wrapper records in a temporary directory and copies back only the GIF;
-it uses the freshly built local binary and deletes its sample CSVs afterward.
+it uses the freshly built local binary, an empty isolated TOML config, and deletes
+its sample CSVs afterward.
 
 When changing displayed features, CLI syntax, key bindings, layout, or demo data,
 update the tape as needed and regenerate the GIF in the same change. Inspect

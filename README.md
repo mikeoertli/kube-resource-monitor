@@ -372,15 +372,17 @@ limits, a container over its limit, an unscraped pod, and a nearly-full volume.
 
 ## Settings
 
-krm reads `$XDG_CONFIG_HOME/krm/krm_config.yaml`, or
-`~/.config/krm/krm_config.yaml`. Override the path with `--config` or `KRM_CONFIG`.
+krm reads `$XDG_CONFIG_HOME/krm/krm_config.toml`, or
+`~/.config/krm/krm_config.toml`. Override the path with `--config` or `KRM_CONFIG`.
+If you created a YAML config during development, recreate it with `--init-config`
+and transfer your preferences using TOML syntax; YAML files are no longer loaded.
 A missing default file uses built-in defaults. CLI flags take precedence.
 
 ```sh
 krm --init-config       # create a commented settings template
 krm --edit-config       # edit in $EDITOR, then validate and exit (also -e)
 krm --print-config      # print the complete commented defaults; credentials are never read
-krm --config ./krm.yaml # use a specific settings file
+krm --config ./krm.toml # use a specific settings file
 krm -v                 # version information (also --version or krm version)
 ```
 
@@ -392,31 +394,35 @@ when available, otherwise `vim -d`. Set `KRM_DIFF_EDITOR` to a command such as
 `--edit-config` uses `$EDITOR` (default `vi`). Editor arguments support quoted
 paths and arguments and execute directly, without shell expansion.
 
-All normal persistent flags have YAML settings using underscores, such as
-`all_namespaces`, `group_by`, `no_color`, `bar_style`, `include_missing`, `csv`,
+All normal persistent flags have TOML settings using underscores, such as
+`all_namespaces`, `group_by`, `force_color`, `no_color`, `bar_style`, `include_missing`, `csv`,
 and `request_timeout`. Notification defaults live under `notify` (rules, repeat,
 hold duration, hysteresis, recovery and stdout options). One-time installation,
 version/config actions, config-path selection, and demo mode
-are excluded. Authentication stays in kubeconfig. Invalid or unknown settings
+are excluded. `force_color` corresponds to CLI `--color`: it forces colored table output even
+when stdout is not a terminal. Leave it false for automatic detection;
+`no_color = true` disables color. Rename existing `color` settings to `force_color`.
+Authentication stays in kubeconfig. Invalid or unknown settings
 fail before connecting to the cluster; editing remains available for repairs.
 
-```yaml
-requests: true
-limits: true
-show_age: true
-show_restarts: true
-containers: false
-interval: 5s
-storage_interval: 1m
-sort_by: "" # empty starts with the first entry in the active cycle
-sort_order: ["cpu%", "mem%", cpu, memory]
-storage_sort_order: ["use%", kind, request, used]
-notify:
-  on: ["cpu>85%", "mem>90%"]
-  for: 2m
-  repeat: 30m
-  hysteresis: 0.1
-  stdout: false
+```toml
+requests = true
+limits = true
+show_age = true
+show_restarts = true
+containers = false
+interval = "5s"
+storage_interval = "1m"
+sort_by = "" # empty starts with the first entry in the active cycle
+sort_order = ["cpu%", "mem%", "cpu", "memory"]
+storage_sort_order = ["use%", "kind", "request", "used"]
+
+[notify]
+on = ["cpu>85%", "mem>90%"]
+for = "2m"
+repeat = "30m"
+hysteresis = 0.1
+stdout = false
 ```
 
 The default sort is CPU %. Each press of `s` advances to memory %, CPU, memory,

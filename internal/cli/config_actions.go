@@ -72,7 +72,7 @@ func (f *globalFlags) configAction(cmd *cobra.Command) error {
 			return err
 		}
 		defer os.RemoveAll(dir)
-		source := filepath.Join(dir, "template.yaml")
+		source := filepath.Join(dir, "template.toml")
 		if err := os.WriteFile(source, template, 0400); err != nil {
 			return err
 		}

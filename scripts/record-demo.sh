@@ -14,8 +14,8 @@ mkdir -p "$recording_dir/assets"
 cp "$root/assets/demo.tape" "$recording_dir/demo.tape"
 cd "$recording_dir"
 export PATH="$root/bin:$PATH"
-export KRM_CONFIG="$recording_dir/config.yaml"
-printf '{}\n' > "$KRM_CONFIG"
+export KRM_CONFIG="$recording_dir/config.toml"
+: > "$KRM_CONFIG"
 export TERM=xterm-256color COLORTERM=truecolor
 unset NO_COLOR BASH_ENV ENV PROMPT_COMMAND
 vhs demo.tape

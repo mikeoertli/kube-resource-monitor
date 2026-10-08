@@ -9,7 +9,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
-- YAML settings with defaults for query, display, refresh, export, sorting
+- TOML settings with defaults for query, display, refresh, export, sorting
   and notification options. CLI flags override settings. Workload and storage sort cycles are
   configurable independently.
 - `--config`, `--edit-config` / `-e`, `--init-config`, and `--print-config`.
@@ -20,6 +20,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 
+- Configuration uses TOML at `krm_config.toml`, matching gprm. Templates,
+  editor/diff commands, and the isolated demo recording use TOML.
+- Renamed the settings key `color` to `force_color` to clarify that it forces
+  color output. CLI `--color` remains available. Old settings receive a migration
+  error naming the replacement key.
 - Requests, limits, age and restarts are enabled by default; disable them with
   `--requests=false`, `--limits=false`, `--show-age=false`, `--show-restarts=false`.
 - Default workload/node sort cycle is CPU %, memory %, CPU, memory.

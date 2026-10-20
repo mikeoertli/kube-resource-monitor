@@ -70,12 +70,16 @@ type Model struct {
 	// started is when the view opened, used to show a transient orientation
 	// hint. Someone who typed a bare `krm` may not realize they have entered a
 	// live, full-screen view at all.
-	started     time.Time
-	showHelp    bool
-	lastErr     error
-	lastRefresh time.Time
-	alerts      []notify.Alert
-	alertTime   time.Time
+	started        time.Time
+	showHelp       bool
+	lastErr        error
+	lastRefresh    time.Time
+	slowRefreshes  int
+	fastRefreshes  int
+	slowCollection time.Duration
+	refreshWarning bool
+	alerts         []notify.Alert
+	alertTime      time.Time
 
 	tbl *render.Table
 	// generation guards against a slow in-flight collection landing after the
@@ -115,6 +119,7 @@ type snapshotMsg struct {
 	snap       *inventory.Snapshot
 	err        error
 	generation int
+	duration   time.Duration
 }
 
 type tickMsg time.Time
@@ -125,6 +130,7 @@ const menuHighlightDuration = 1500 * time.Millisecond
 
 // Init implements tea.Model.
 func (m *Model) Init() tea.Cmd {
+	m.loading = true
 	return tea.Batch(m.collect(), tick(m.cfg.Interval))
 }
 
@@ -150,8 +156,9 @@ func (m *Model) collect() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
+		started := time.Now()
 		snap, err := coll.Collect(ctx, opts)
-		return snapshotMsg{snap: snap, err: err, generation: gen}
+		return snapshotMsg{snap: snap, err: err, generation: gen, duration: time.Since(started)}
 	}
 }
 
@@ -174,11 +181,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case snapshotMsg:
-		m.loading = false
 		if msg.generation != m.generation {
 			// Stale result for a query the user has since changed.
 			return m, nil
 		}
+		m.loading = false
+		m.observeRefresh(msg.duration, msg.err)
+		m.clampScroll()
 		if msg.err != nil {
 			m.lastErr = msg.err
 			return m, nil
@@ -402,8 +411,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case key.Matches(msg, keys.Faster):
 		m.cfg.Interval = adjustInterval(m.cfg.Interval, -1)
+		m.slowRefreshes, m.fastRefreshes = 0, 0
+		m.refreshWarning = false
 	case key.Matches(msg, keys.Slower):
 		m.cfg.Interval = adjustInterval(m.cfg.Interval, 1)
+		m.slowRefreshes, m.fastRefreshes = 0, 0
+		m.refreshWarning = false
 	}
 	return m, nil
 }
@@ -570,6 +583,9 @@ func (m *Model) moveCursor(delta int) {
 func (m *Model) visibleRows() int {
 	// header + status + filter/legend + footer
 	chrome := 5 + len(m.menuLines())
+	if banner := m.refreshBanner(); banner != "" {
+		chrome += lipgloss.Height(banner)
+	}
 	if m.orienting() {
 		chrome++
 	}
@@ -622,19 +638,37 @@ func intervalLabel(d time.Duration) string {
 
 func (m *Model) normalSortChoices() []model.SortKey {
 	if len(m.cfg.SortOrder) > 0 {
-		return m.cfg.SortOrder
+		return m.visibleSortChoices(m.cfg.SortOrder)
 	}
-	return model.AllSortKeys
+	return m.visibleSortChoices(model.AllSortKeys)
 }
 func (m *Model) storageSortChoices() []model.SortKey {
 	if len(m.cfg.StorageSortOrder) > 0 {
-		return m.cfg.StorageSortOrder
+		return m.visibleSortChoices(m.cfg.StorageSortOrder)
 	}
-	return model.StorageSortKeys
+	return m.visibleSortChoices(model.StorageSortKeys)
 }
 func (m *Model) sortChoices() []model.SortKey {
 	if m.cfg.Render.Storage {
 		return m.storageSortChoices()
 	}
 	return m.normalSortChoices()
+}
+
+// Skip optional metadata when its column is hidden, including in custom cycles.
+func (m *Model) visibleSortChoices(order []model.SortKey) []model.SortKey {
+	choices := make([]model.SortKey, 0, len(order))
+	for _, key := range order {
+		if key == model.SortAge && !m.cfg.Render.ShowAge {
+			continue
+		}
+		if key == model.SortRestarts && !m.cfg.Render.ShowRestarts {
+			continue
+		}
+		choices = append(choices, key)
+	}
+	if len(choices) == 0 {
+		return []model.SortKey{model.SortName}
+	}
+	return choices
 }

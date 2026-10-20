@@ -174,13 +174,14 @@ const (
 	SortCPUPercent     SortKey = "cpu%"
 	SortMemPercent     SortKey = "mem%"
 	SortRestarts       SortKey = "restarts"
+	SortAge            SortKey = "age"
 )
 
 // AllSortKeys is the cycle order used by the TUI's sort toggle.
-var AllSortKeys = []SortKey{SortCPUPercent, SortMemPercent, SortCPU, SortMemory}
+var AllSortKeys = []SortKey{SortCPUPercent, SortMemPercent, SortCPU, SortMemory, SortRestarts, SortAge, SortName}
 
 // StorageSortKeys excludes metrics which are not displayed in storage views.
-var StorageSortKeys = []SortKey{SortStoragePercent, SortKind, SortStorageRequest, SortStorageUsed}
+var StorageSortKeys = []SortKey{SortStoragePercent, SortKind, SortStorageRequest, SortStorageUsed, SortRestarts, SortAge, SortName}
 
 func IsStorageSortKey(key SortKey) bool {
 	for _, candidate := range StorageSortKeys {
@@ -229,6 +230,10 @@ func Sort(rows []*Row, key SortKey, descending bool) {
 			}
 			if af != bf {
 				return af < bf
+			}
+		case SortAge:
+			if a.Age != b.Age {
+				return a.Age < b.Age
 			}
 		case SortRestarts:
 			if a.Restarts != b.Restarts {
@@ -292,17 +297,18 @@ func Sort(rows []*Row, key SortKey, descending bool) {
 			return a.Name < b.Name
 		}
 		if key == SortName {
-			if a.Namespace != b.Namespace {
+			if a.Name != b.Name {
 				if descending {
-					return a.Namespace > b.Namespace
+					return a.Name > b.Name
 				}
-				return a.Namespace < b.Namespace
+				return a.Name < b.Name
 			}
 			if descending {
-				return a.Name > b.Name
+				return a.Namespace > b.Namespace
 			}
-			return a.Name < b.Name
+			return a.Namespace < b.Namespace
 		}
+
 		if descending {
 			return less(b, a)
 		}

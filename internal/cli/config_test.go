@@ -245,3 +245,31 @@ func TestTOMLTypesValidatedEvenWithCLIOverride(t *testing.T) {
 		t.Fatal("CLI override bypassed invalid config type")
 	}
 }
+
+func TestMetadataConfigSortOrdersSkipHiddenColumns(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	data := `show_age = false
+show_restarts = false
+sort_order = ["age", "restarts", "name"]
+storage_sort_order = ["restarts", "age", "name"]
+`
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, storage := range []bool{false, true} {
+		cmd := newRootCommand()
+		args := []string{"--config", path, "top", "--demo", "--no-color"}
+		if storage {
+			args = append([]string{"storage"}, args...)
+		}
+		cmd.SetArgs(args)
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := cmd.Flags().GetString("sort-by"); got != "name" {
+			t.Fatalf("initial sort = %s, want name", got)
+		}
+	}
+}

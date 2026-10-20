@@ -356,3 +356,24 @@ func TestStorageSortMetricsAndUnknowns(t *testing.T) {
 		t.Fatal("kind ordering is not alphabetical")
 	}
 }
+
+func TestMetadataSortsAndExpandedChildren(t *testing.T) {
+	for _, key := range []SortKey{SortAge, SortRestarts, SortName} {
+		for _, descending := range []bool{false, true} {
+			// Opposing namespace/name order ensures name is the primary sort field.
+			low := &Row{Name: "alpha", Namespace: "z", Age: time.Hour, Restarts: 1}
+			high := &Row{Name: "zulu", Namespace: "a", Age: 24 * time.Hour, Restarts: 9}
+			parent := &Row{Name: "parent", Children: []*Row{high, low}}
+			rows := []*Row{high, low}
+			Sort(rows, key, descending)
+			Sort([]*Row{parent}, key, descending)
+			want := low
+			if descending {
+				want = high
+			}
+			if rows[0] != want || parent.Children[0] != want {
+				t.Fatalf("sort %s descending=%v failed for roots/children", key, descending)
+			}
+		}
+	}
+}

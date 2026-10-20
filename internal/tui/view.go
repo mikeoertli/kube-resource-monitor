@@ -27,6 +27,10 @@ func (m *Model) View() string {
 	b.WriteString(m.statusBar())
 	b.WriteString("\n")
 
+	if banner := m.refreshBanner(); banner != "" {
+		b.WriteString(banner)
+		b.WriteString("\n")
+	}
 	if m.lastErr != nil {
 		b.WriteString(p.Error.Render("error: " + m.lastErr.Error()))
 		b.WriteString("\n")

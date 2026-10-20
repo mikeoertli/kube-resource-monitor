@@ -565,7 +565,7 @@ func TestStorageSortCycleStaysOnVisibleMetrics(t *testing.T) {
 		}
 	}
 	for i := 0; i < 8; i++ {
-		if want := model.StorageSortKeys[i%4]; m.cfg.Sort != want {
+		if want := m.storageSortChoices()[i%len(m.storageSortChoices())]; m.cfg.Sort != want {
 			t.Fatalf("cycle %d: got %s want %s", i, m.cfg.Sort, want)
 		}
 		m.cycleSort()
@@ -626,10 +626,72 @@ func TestConfiguredSortCycles(t *testing.T) {
 func TestDefaultWorkloadSortCycle(t *testing.T) {
 	m := newTestModel(t, &stubCollector{snap: testSnapshot()})
 	m.cfg.Sort = model.SortCPUPercent
-	for _, want := range []model.SortKey{model.SortMemPercent, model.SortCPU, model.SortMemory, model.SortCPUPercent} {
+	for _, want := range []model.SortKey{model.SortMemPercent, model.SortCPU, model.SortMemory, model.SortName, model.SortCPUPercent} {
 		m.cycleSort()
 		if m.cfg.Sort != want {
 			t.Fatalf("got %s want %s", m.cfg.Sort, want)
+		}
+	}
+}
+
+func TestMetadataSortChoicesRespectVisibleColumns(t *testing.T) {
+	for _, storage := range []bool{false, true} {
+		for _, age := range []bool{false, true} {
+			for _, restarts := range []bool{false, true} {
+				m := newTestModel(t, &stubCollector{snap: testSnapshot()})
+				m.cfg.Render.Storage = storage
+				m.cfg.Render.ShowAge = age
+				m.cfg.Render.ShowRestarts = restarts
+				order := []model.SortKey{model.SortName, model.SortRestarts, model.SortAge}
+				m.cfg.SortOrder = order
+				m.cfg.StorageSortOrder = order
+				m.cfg.Sort = model.SortName
+				want := []model.SortKey{}
+				if restarts {
+					want = append(want, model.SortRestarts)
+				}
+				if age {
+					want = append(want, model.SortAge)
+				}
+				want = append(want, model.SortName)
+				for _, key := range want {
+					m.cycleSort()
+					if m.cfg.Sort != key {
+						t.Fatalf("storage=%v age=%v restarts=%v: got %s want %s", storage, age, restarts, m.cfg.Sort, key)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestOnlyHiddenSortChoicesFallBackToName(t *testing.T) {
+	m := newTestModel(t, &stubCollector{snap: testSnapshot()})
+	m.cfg.Render.ShowAge = false
+	m.cfg.Render.ShowRestarts = false
+	m.cfg.SortOrder = []model.SortKey{model.SortAge, model.SortRestarts}
+	m.cycleSort()
+	if m.cfg.Sort != model.SortName {
+		t.Fatal("hidden-only cycle should fall back to name")
+	}
+}
+
+func TestDefaultSortCyclesIncludeVisibleMetadata(t *testing.T) {
+	for _, storage := range []bool{false, true} {
+		m := newTestModel(t, &stubCollector{snap: testSnapshot()})
+		m.cfg.Render.Storage = storage
+		m.cfg.Render.ShowAge = true
+		m.cfg.Render.ShowRestarts = true
+		order := model.AllSortKeys
+		if storage {
+			order = model.StorageSortKeys
+		}
+		m.cfg.Sort = order[0]
+		for i := 1; i <= len(order); i++ {
+			m.cycleSort()
+			if want := order[i%len(order)]; m.cfg.Sort != want {
+				t.Fatalf("storage=%v: got %s want %s", storage, m.cfg.Sort, want)
+			}
 		}
 	}
 }

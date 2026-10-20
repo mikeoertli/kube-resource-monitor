@@ -5,7 +5,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.4.0] - Work in progress
+## [1.5.0] - Work in progress
+
+### Added
+
+- A refresh warning banner after three consecutive collections exceed the
+  refresh interval, showing timings and a suggested slower interval. Clears
+  after three successful collections finish within the interval.
+- Name, restarts, and age in workload/node and storage sort cycles. Restarts
+  and age are skipped when their columns are hidden, including custom cycles.
+  `--sort-by age` and configurable cycles support age sorting; name sorting
+  compares resource names across namespaces.
+
+### Changed
+
+- Default workload/node sort cycle is CPU %, memory %, CPU, memory, restarts,
+  age, name. Storage adds restarts, age, and name after used bytes.
+
+## [1.4.0] - 2026-10-20
 
 ### Added
 

@@ -50,6 +50,17 @@ Type "p"
 Sleep 1s
 Type "s"
 Sleep 1s
+# Continue past memory/CPU to restarts, age, and name.
+Type "s"
+Sleep 500ms
+Type "s"
+Sleep 500ms
+Type "s"
+Sleep 2s
+Type "s"
+Sleep 2s
+Type "s"
+Sleep 2s
 Type "a"
 Sleep 3s
 Type "!"

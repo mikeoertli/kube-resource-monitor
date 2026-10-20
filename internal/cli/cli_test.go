@@ -621,12 +621,12 @@ func TestStorageDefaultSortAndExplicitSorts(t *testing.T) {
 	if len(doc.Rows) != 6 || doc.Rows[1].Kind != "EphemeralStorage" {
 		t.Fatalf("default sort is not use%%: %s", out)
 	}
-	for _, sort := range []string{"use%", "kind", "request", "used", "storage", "name"} {
+	for _, sort := range []string{"use%", "kind", "request", "used", "storage", "name", "age", "restarts"} {
 		if _, err := run(t, "storage", "top", "--sort-by", sort); err != nil {
 			t.Fatalf("%s: %v", sort, err)
 		}
 	}
-	for _, sort := range []string{"cpu", "memory", "cpu%", "mem%", "restarts"} {
+	for _, sort := range []string{"cpu", "memory", "cpu%", "mem%"} {
 		if _, err := run(t, "storage", "top", "--sort-by", sort); err == nil {
 			t.Fatalf("accepted hidden metric %s", sort)
 		}

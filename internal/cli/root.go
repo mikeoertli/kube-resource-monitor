@@ -178,10 +178,10 @@ func newRootWithFlags() (*cobra.Command, *globalFlags) {
 				if f.groupBy == "storage" {
 					key, _ := parseSortKey(f.sortBy)
 					if !f.configured["sort-by"] || f.sortBy == "" || !model.IsStorageSortKey(key) {
-						f.sortBy = f.storageSortOrder[0]
+						f.sortBy = string(storageSortOrder(f)[0])
 					}
 				} else if !f.configured["sort-by"] || f.sortBy == "" {
-					f.sortBy = f.sortOrder[0]
+					f.sortBy = string(normalSortOrder(f)[0])
 				}
 			}
 			if f.groupBy == "storage" && !cmd.Flags().Changed("interval") {
@@ -545,9 +545,26 @@ func exportCSV(dir string, snap *inventory.Snapshot) error {
 
 func normalSortOrder(f *globalFlags) []model.SortKey {
 	order, _ := parseSortOrder(f.sortOrder, false)
-	return order
+	return visibleSortOrder(f, order)
 }
 func storageSortOrder(f *globalFlags) []model.SortKey {
 	order, _ := parseSortOrder(f.storageSortOrder, true)
-	return order
+	return visibleSortOrder(f, order)
+}
+
+func visibleSortOrder(f *globalFlags, order []model.SortKey) []model.SortKey {
+	choices := make([]model.SortKey, 0, len(order))
+	for _, key := range order {
+		if key == model.SortAge && !f.age {
+			continue
+		}
+		if key == model.SortRestarts && !f.restarts {
+			continue
+		}
+		choices = append(choices, key)
+	}
+	if len(choices) == 0 {
+		return []model.SortKey{model.SortName}
+	}
+	return choices
 }

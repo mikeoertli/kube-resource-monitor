@@ -1,7 +1,13 @@
 <p align="center">
-  <img src="assets/png/logo-256.png" alt="project icon" align="center" width="128" height="128">
+  <img
+    src="assets/png/logo-256.png"
+    alt="project icon"
+    align="center"
+    width="128"
+    height="128"
+  >
 </p>
-  
+
 # kube-resource-monitor (`krm`)
 
 A terminal UI for monitoring Kubernetes workload resource usage with snapshot
@@ -9,7 +15,15 @@ or watching indefinitely. Workload resource usage is contextualized with the
 resource request and limit settings.
 
 <p align="center">
-  <img src="assets/krm-demo.gif" alt="krm demo: live usage, container drilldown, filtering, node and volume capacity, alerts, and CSV export" align="center" width="100%">
+  <img
+    src="assets/krm-demo.gif"
+    alt="
+      krm demo: live usage, container drilldown, filtering, node and volume
+      capacity, alerts, and CSV export
+    "
+    align="center"
+    width="100%"
+  >
 </p>
 
 ```
@@ -35,7 +49,8 @@ NAME                KIND    READY   CPU  CPU LIM  CPU%  CPU USE          MEM  ME
 - **Notifies.** Threshold rules (`cpu>85%`, `mem>2Gi`, `storage>80%`) with
   desktop notifications, hysteresis so alerts do not flap, and a `--for`
   duration so a startup spike does not page you. The recommended notification
-  platform is [terminal-notifier](https://github.com/julienXX/terminal-notifier).
+  platform is
+  [terminal-notifier](https://github.com/julienXX/terminal-notifier).
 - **Scripts.** `-o json`, `-o csv`, and `-o prometheus` for everything else.
 
 ## Install
@@ -154,25 +169,26 @@ krm storage top --csv ./samples       # snapshot plus timestamped CSV files
 and PVCs in one table. The **KIND** column identifies each flavor: `ephemeral`
 for a pod's local storage total, `emptydir` for a local volume, and `pvc` for a
 persistent claim. Expand a pod to see its `emptyDir` volumes. Each row keeps its
-own usage/request and usage/limit-or-capacity bars. The combined footer reports total
-usage and requests; it avoids a single percentage across unrelated bounds.
-Use `krm storage watch -i 5m` for slower updates or `--csv ./storage-samples`
-to record everything. `-g storage` also works. All storage commands default to
+own usage/request and usage/limit-or-capacity bars. The combined footer reports
+total usage and requests; it avoids a single percentage across unrelated bounds.
+Use `krm storage watch -i 5m` for slower updates or `--csv ./storage-samples` to
+record everything. `-g storage` also works. All storage commands default to
 one-minute refreshes.
 
-`--type ephemeral` shows pod `ephemeral-storage` requests and limits alongside kubelet
-usage, including writable layers, logs, and disk-backed `emptyDir` volumes.
-Expand a pod to see its `emptyDir` volumes and their `sizeLimit`. Child volumes
-are already included in the pod total and are not added twice. Memory-backed
-`emptyDir` is accounted as memory and excluded from this disk view. See
+`--type ephemeral` shows pod `ephemeral-storage` requests and limits alongside
+kubelet usage, including writable layers, logs, and disk-backed `emptyDir`
+volumes. Expand a pod to see its `emptyDir` volumes and their `sizeLimit`. Child
+volumes are already included in the pod total and are not added twice.
+Memory-backed `emptyDir` is accounted as memory and excluded from this disk
+view. See
 [Kubernetes local storage accounting](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#local-ephemeral-storage).
 
 `--type pvc` shows persistent claims, with requested size, measured usage, and
 filesystem capacity. Capacity is a volume size, rather than an ephemeral-storage
-limit. The default is `--type all`. Use `--type` with `krm storage`, its top/watch
-subcommands, or `-g storage` (including notify mode). The TUI has a single storage
-grouping. Existing `-g pvc` and `-g volume` shorthands remain compatible and map
-to the corresponding type filter.
+limit. The default is `--type all`. Use `--type` with `krm storage`, its
+top/watch subcommands, or `-g storage` (including notify mode). The TUI has a
+single storage grouping. Existing `-g pvc` and `-g volume` shorthands remain
+compatible and map to the corresponding type filter.
 
 Storage shows two percentage bars:
 
@@ -186,9 +202,9 @@ limits show `n/a` and a neutral dotted track. Missing usage shows `unknown`.
 Unbounded storage never appears as a full bar merely because it has usage.
 
 Storage defaults to **USE% descending**, with unknown percentages last. Press
-`s` to cycle **use% → kind → request → used**, and `v` to reverse direction.
-`request` and `used` sort by bytes; CPU and memory sorts are unavailable in this
-view. You can also choose a sort explicitly:
+`s` to cycle **use% → kind → request → used → restarts → age → name**, and `v`
+to reverse direction. `request` and `used` sort by bytes; CPU and memory sorts
+are unavailable in this view. You can also choose a sort explicitly:
 
 ```sh
 krm storage --sort-by use%
@@ -216,7 +232,15 @@ krm --only-problems             # only rows at or above --threshold (default 85%
 ### Columns
 
 <p align="center">
-  <img src="assets/png/krm_demo_requests_limits_restarts_age.png" alt="demo screenshot of command: 'krm --show-restarts --show-age --requests --limits --demo'" align="center" width="85%">
+  <img
+    src="assets/png/krm_demo_requests_limits_restarts_age.png"
+    alt="
+      demo screenshot of command: 'krm --show-restarts --show-age --requests
+      --limits --demo'
+    "
+    align="center"
+    width="85%"
+  >
 </p>
 
 ```sh
@@ -240,9 +264,10 @@ krm watch -g pod --csv ./samples      # record each refresh by pod
 including collected pod and container children. Files are named
 `<namespace>__<kind>__<name>.csv`, for example
 `prod__deployment__storefront.csv`. Container filenames include their pod name
-(for example, `prod__container__storefront-abc_app.csv`) so containers in different pods stay separate.
-Resource types are lowercase; spaces, slashes, and other special filename
-characters become underscores. Cluster-scoped resources have an empty namespace prefix.
+(for example, `prod__container__storefront-abc_app.csv`) so containers in
+different pods stay separate. Resource types are lowercase; spaces, slashes, and
+other special filename characters become underscores. Cluster-scoped resources
+have an empty namespace prefix.
 
 Each file gets one header and timestamped samples appended on every successful
 collection, including across runs. Use a separate directory for each cluster.
@@ -257,10 +282,10 @@ Storage exports include optional request and limit byte fields. Existing CSV
 files from versions with older columns are rejected; use a new output directory
 to preserve the old samples without mixing schemas.
 
-CPU values are in millicores; memory and storage are in bytes. Grouping and filters
-control which resources are collected; expanding or collapsing the live view
-does not affect exports. Normal terminal output continues, and `notify` also
-supports `--csv`. Use `-o csv` for a single combined CSV on stdout.
+CPU values are in millicores; memory and storage are in bytes. Grouping and
+filters control which resources are collected; expanding or collapsing the live
+view does not affect exports. Normal terminal output continues, and `notify`
+also supports `--csv`. Use `-o csv` for a single combined CSV on stdout.
 
 ### Watching
 
@@ -273,24 +298,33 @@ krm watch -i 10s
 `krm watch` refuses to run when stdout is not a terminal rather than writing
 cursor escapes into your pipe; use `krm top` there.
 
-Pressed menu actions briefly highlight with black text on a bright pink background.
+If three consecutive collections take longer than the refresh interval, a
+warning banner shows the collection time and suggests a slower interval.
+Press `-` to slow down, or use the suggested `--interval` on your next launch.
+Scheduled refreshes are skipped while collection is in progress. The banner
+clears after three successful collections finish within the interval; a single
+slow request does not trigger it. Changing the interval restarts detection.
 
-Keys: 
-- `?` help 
-- `↑`/`↓` move 
-- `↵` expand 
-- `t` grouping 
-- `s` sort 
+Pressed menu actions briefly highlight with black text on a bright pink
+background.
+
+Keys:
+
+- `?` help
+- `↑`/`↓` move
+- `↵` expand
+- `t` grouping
+- `s` sort
 - `v` reverse
-- `/` filter 
-- `c` containers 
+- `/` filter
+- `c` containers
 - `r` requests column
 - `l` limits column
 - `b` bars
-- `!` only hot rows 
-- `a` all namespaces 
-- `p` pause 
-- `+`/`-` refresh rate 
+- `!` only hot rows
+- `a` all namespaces
+- `p` pause
+- `+`/`-` refresh rate
 - `q` quit.
 
 `q`, `Q`, and `ctrl+c` quit. `r` toggles requests and `v` reverses sort.
@@ -322,9 +356,10 @@ falling a hysteresis margin (default 10% of the threshold) below the line, so a
 value hovering right at 85% does not flap. `--repeat 30m` re-notifies a
 still-firing alert; `--for 5m` requires a breach to persist before firing.
 
-Desktop notifications use [`terminal-notifier`](https://github.com/julienXX/terminal-notifier)
-if installed, otherwise `osascript` on macOS and `notify-send` on Linux.
-With none available it falls back to `stdout`, so notify mode still works over SSH.
+Desktop notifications use
+[`terminal-notifier`](https://github.com/julienXX/terminal-notifier) if
+installed, otherwise `osascript` on macOS and `notify-send` on Linux. With none
+available it falls back to `stdout`, so notify mode still works over SSH.
 
 ## How numbers are chosen
 
@@ -355,10 +390,11 @@ window, so you do not chase a spike that has already passed.
 
 ## Permissions
 
-Ordinary read access to pods, workloads, nodes, and `metrics.k8s.io` covers everything
-except disk usage (ephemeral volumes and PVCs), which comes from each kubelet's summary endpoint and needs
-`nodes/proxy`. Without it, `krm storage --type pvc` still lists every claim and its provisioned
-size and says why usage is unavailable, rather than failing.
+Ordinary read access to pods, workloads, nodes, and `metrics.k8s.io` covers
+everything except disk usage (ephemeral volumes and PVCs), which comes from each
+kubelet's summary endpoint and needs `nodes/proxy`. Without it,
+`krm storage --type pvc` still lists every claim and its provisioned size and
+says why usage is unavailable, rather than failing.
 
 ## Trying it without a cluster
 
@@ -373,10 +409,11 @@ limits, a container over its limit, an unscraped pod, and a nearly-full volume.
 ## Settings
 
 krm reads `$XDG_CONFIG_HOME/krm/krm_config.toml`, or
-`~/.config/krm/krm_config.toml`. Override the path with `--config` or `KRM_CONFIG`.
-If you created a YAML config during development, recreate it with `--init-config`
-and transfer your preferences using TOML syntax; YAML files are no longer loaded.
-A missing default file uses built-in defaults. CLI flags take precedence.
+`~/.config/krm/krm_config.toml`. Override the path with `--config` or
+`KRM_CONFIG`. If you created a YAML config during development, recreate it with
+`--init-config` and transfer your preferences using TOML syntax; YAML files are
+no longer loaded. A missing default file uses built-in defaults. CLI flags take
+precedence.
 
 ```sh
 krm --init-config       # create a commented settings template
@@ -395,15 +432,16 @@ when available, otherwise `vim -d`. Set `KRM_DIFF_EDITOR` to a command such as
 paths and arguments and execute directly, without shell expansion.
 
 All normal persistent flags have TOML settings using underscores, such as
-`all_namespaces`, `group_by`, `force_color`, `no_color`, `bar_style`, `include_missing`, `csv`,
-and `request_timeout`. Notification defaults live under `notify` (rules, repeat,
-hold duration, hysteresis, recovery and stdout options). One-time installation,
-version/config actions, config-path selection, and demo mode
-are excluded. `force_color` corresponds to CLI `--color`: it forces colored table output even
-when stdout is not a terminal. Leave it false for automatic detection;
-`no_color = true` disables color. Rename existing `color` settings to `force_color`.
-Authentication stays in kubeconfig. Invalid or unknown settings
-fail before connecting to the cluster; editing remains available for repairs.
+`all_namespaces`, `group_by`, `force_color`, `no_color`, `bar_style`,
+`include_missing`, `csv`, and `request_timeout`. Notification defaults live
+under `notify` (rules, repeat, hold duration, hysteresis, recovery and stdout
+options). One-time installation, version/config actions, config-path selection,
+and demo mode are excluded. `force_color` corresponds to CLI `--color`: it
+forces colored table output even when stdout is not a terminal. Leave it false
+for automatic detection; `no_color = true` disables color. Rename existing
+`color` settings to `force_color`. Authentication stays in kubeconfig. Invalid
+or unknown settings fail before connecting to the cluster; editing remains
+available for repairs.
 
 ```toml
 requests = true
@@ -414,8 +452,8 @@ containers = false
 interval = "5s"
 storage_interval = "1m"
 sort_by = "" # empty starts with the first entry in the active cycle
-sort_order = ["cpu%", "mem%", "cpu", "memory"]
-storage_sort_order = ["use%", "kind", "request", "used"]
+sort_order = ["cpu%", "mem%", "cpu", "memory", "restarts", "age", "name"]
+storage_sort_order = ["use%", "kind", "request", "used", "restarts", "age", "name"]
 
 [notify]
 on = ["cpu>85%", "mem>90%"]
@@ -426,11 +464,15 @@ stdout = false
 ```
 
 The default sort is CPU %. Each press of `s` advances to memory %, CPU, memory,
-and back to CPU %. Set `sort_order` to the desired sequence; `sort_by` or
-`--sort-by` can choose a different initial key. Storage uses its own order.
-`storage_interval` controls its slower default; explicit `--interval` overrides
-it. With narrow terminals, bars give way to numeric columns while your column
-preferences stay enabled.
+restarts, age, name, and back to CPU %. Restarts and age are skipped when their
+columns are hidden, including in custom sort cycles. Set `sort_order` to the
+desired sequence; `sort_by` or `--sort-by` can choose a different initial key,
+including `name`, `restarts`, or `age`. Age sorts oldest first; restarts
+sorts highest first. Name sorts by resource name across namespaces. Use `v` or
+`--reverse` to reverse the order. Storage uses its own order, with restarts,
+age, and name after used bytes. `storage_interval` controls its slower default;
+explicit `--interval` overrides it. With narrow terminals, bars give way to
+numeric columns while your column preferences stay enabled.
 
 ## Versioning
 
@@ -441,14 +483,14 @@ date (`YYYY-MM-DD`) and add a new `## [<VERSION>] - Work in progress` section.
 No tag or official release is needed for this workflow.
 
 ```sh
-krm version              # krm 1.4.0 (commit abcdef1, built ..., go1.24.7, darwin/arm64)
-krm version --short      # 1.4.0
+krm version              # krm 1.5.0 (commit abcdef1, built ..., go1.24.7, darwin/arm64)
+krm version --short      # 1.5.0
 krm version -o json      # machine-readable, including where the version came from
 ```
 
 The version resolves from whichever source is available: `-ldflags` when built
 through the Makefile (using `VERSION`), the module version when installed with
-`go install ...@v1.4.0`, and the git revision when built from a checkout. A
+`go install ...@v1.5.0`, and the git revision when built from a checkout. A
 build from a modified tree is marked `-dirty`. The `source` field in the JSON
 output says which route a given binary took, which is the quickest way to
 explain a version that reads `dev`.
@@ -482,18 +524,20 @@ cloning to generate it; every dependency version is already pinned in
 [`mikeoertli/homebrew-tap`](https://github.com/mikeoertli/homebrew-tap) when a
 stable `vMAJOR.MINOR.PATCH` tag is pushed. Keep the tag aligned with `VERSION`
 and include the workflow in the tagged commit. For the current version, the
-release tag is `v1.4.0`.
+release tag is `v1.5.0`.
 
 The workflow uses the **TAP_DISPATCH_TOKEN** repository secret to trigger the
 tap's release updater for `krm`. The token needs **Actions: Read and write**
-access to the tap repository. See the [tap's setup instructions](https://github.com/mikeoertli/homebrew-tap#notify-the-tap-when-a-project-is-tagged)
+access to the tap repository. See the
+[tap's setup instructions](https://github.com/mikeoertli/homebrew-tap#notify-the-tap-when-a-project-is-tagged)
 for token configuration and the publishing process.
 
 The tap opens an update PR, builds and tests its packages, and provides a
 separate bottle-publishing step. The notification does not publish the package
 on its own. Prerelease tags are skipped, and existing tags are not retriggered.
 After the tap update is published, use `brew update` and `brew upgrade` on each
-computer to install it. Ordinary branch pushes do not change the packaged version.
+computer to install it. Ordinary branch pushes do not change the packaged
+version.
 
 ## License
 
@@ -501,4 +545,5 @@ MIT.
 
 ## Related
 
-Check out my new Kubernetes context management TUI too – [`kcm` (kube-context-manager)](https://github.com/mikeoertli/kube-context-manager).
+Check out my new Kubernetes context management TUI too –
+[`kcm` (kube-context-manager)](https://github.com/mikeoertli/kube-context-manager).

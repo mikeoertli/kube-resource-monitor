@@ -49,6 +49,12 @@ const rootExamples = `  # live view of the current context and namespace
   # every namespace, broken down by container
   krm -A -c
 
+  # Helm releases, then their workloads and pods
+  krm -A -g helm
+
+  # chart metadata in the standard view
+  krm --show-helm
+
   # only what is close to its limit
   krm --only-problems
 
@@ -178,10 +184,10 @@ func newRootWithFlags() (*cobra.Command, *globalFlags) {
 				if f.groupBy == "storage" {
 					key, _ := parseSortKey(f.sortBy)
 					if !f.configured["sort-by"] || f.sortBy == "" || !model.IsStorageSortKey(key) {
-						f.sortBy = string(storageSortOrder(f)[0])
+						f.sortBy = string(visibleSortOrder(f, storageSortOrder(f))[0])
 					}
 				} else if !f.configured["sort-by"] || f.sortBy == "" {
-					f.sortBy = string(normalSortOrder(f)[0])
+					f.sortBy = string(visibleSortOrder(f, normalSortOrder(f))[0])
 				}
 			}
 			if f.groupBy == "storage" && !cmd.Flags().Changed("interval") {
@@ -545,16 +551,19 @@ func exportCSV(dir string, snap *inventory.Snapshot) error {
 
 func normalSortOrder(f *globalFlags) []model.SortKey {
 	order, _ := parseSortOrder(f.sortOrder, false)
-	return visibleSortOrder(f, order)
+	return order
 }
 func storageSortOrder(f *globalFlags) []model.SortKey {
 	order, _ := parseSortOrder(f.storageSortOrder, true)
-	return visibleSortOrder(f, order)
+	return order
 }
 
 func visibleSortOrder(f *globalFlags, order []model.SortKey) []model.SortKey {
 	choices := make([]model.SortKey, 0, len(order))
 	for _, key := range order {
+		if model.IsHelmSortKey(key) && !f.helm {
+			continue
+		}
 		if key == model.SortAge && !f.age {
 			continue
 		}

@@ -128,6 +128,7 @@ krm top -o json | jq '.rows[0]'      # machine-readable
 
 ```sh
 krm -g workload      # default: Deployment / StatefulSet / DaemonSet / Job
+krm -g helm          # Helm releases, then workloads, pods, and containers
 krm -g pod           # individual pods
 krm -g container -c  # individual containers
 krm -g node          # by node, measured against allocatable
@@ -137,6 +138,53 @@ krm -g deployment    # only Deployments (also: statefulset, daemonset, job)
 ```
 
 Kubectl abbreviations work: `-g deploy`, `-g sts`, `-g ds`, `-g po`.
+
+### Helm releases and columns
+
+```sh
+krm -g helm -A                  # group by release and release namespace
+krm -g helm -n prod -f '^shop'   # show a release and its workloads
+krm --show-helm                 # append chart, Helm namespace, chart version
+krm top --show-helm --sort-by helm-chart
+krm top --show-helm --sort-by helm-version --reverse
+```
+
+Use `t` to cycle into Helm grouping. Expand a release to see its workloads,
+then pods and containers. Same-name releases in different release namespaces
+stay separate. Unmanaged workloads appear under **Not managed by Helm**.
+**Unknown Helm release** means Helm management was identified without a release
+name; **Helm ownership unavailable** means owner metadata could not be resolved.
+A release containing different charts or versions shows `multiple` at the
+release level; the individual workloads retain their own chart details.
+
+Press `H` in any view to toggle the three trailing columns: **HELM CHART**,
+**HELM NS**, and **CHART VERSION**. They default to off. `HELM NS` is the Helm
+release's namespace, which can differ from the workload's namespace.
+`CHART VERSION` is the chart package version, not the application's version.
+Unassociated values show `-`; aggregate node/namespace rows have no single Helm
+association, while their workload/pod children can have one.
+
+When the columns are on, the default `s` cycle adds `helm-chart`,
+`helm-namespace`, and `helm-version` after name. Configured cycles can include
+these keys too; hidden Helm columns are skipped. Explicit `--sort-by helm-*`
+requires `--show-helm`. Versions use semantic version order, so `1.10.0` sorts
+above `1.9.0`; missing values stay last in either direction. Turning the columns
+off while sorting by Helm switches back to a visible sort key.
+
+Detection uses Helm release annotations and standard Helm labels on pods and
+owning Deployments, ReplicaSets, StatefulSets, DaemonSets, Jobs, and CronJobs.
+Controller metadata takes precedence; consistent pod-template labels are a
+fallback. The generic `app.kubernetes.io/instance` label alone is not enough to
+identify Helm management. Chart details come from `helm.sh/chart`; absent
+chart/version labels remain unknown. See the
+[Helm label conventions](https://helm.sh/docs/chart_best_practices/labels/).
+
+No Helm binary or release-secret access is needed. Additional metadata reads
+only happen for Helm grouping or enabled Helm columns; permission failures
+produce warnings and keep resource usage visible. Storage columns use the
+pod/owner metadata for ephemeral storage and the PVC's own metadata for claims.
+With Helm data enabled, JSON rows include an optional `helm` object; CSV's
+existing columns remain unchanged.
 
 ### Nodes
 
@@ -248,6 +296,7 @@ krm --requests=false --limits=false # hide declared values (shown by default)
 krm -c                     # break pods down by container
 krm --show-restarts=false --show-age=false # hide metadata (shown by default)
 krm --show-labels
+krm --show-helm           # trailing chart, release namespace, chart version
 krm --bars=false           # numbers only
 krm --bar-style ascii      # for terminals that mangle box drawing
 ```
@@ -321,6 +370,7 @@ Keys:
 - `r` requests column
 - `l` limits column
 - `b` bars
+- `H` Helm columns (off by default)
 - `!` only hot rows
 - `a` all namespaces
 - `p` pause
@@ -449,11 +499,18 @@ limits = true
 show_age = true
 show_restarts = true
 containers = false
+show_helm = false
 interval = "5s"
 storage_interval = "1m"
 sort_by = "" # empty starts with the first entry in the active cycle
-sort_order = ["cpu%", "mem%", "cpu", "memory", "restarts", "age", "name"]
-storage_sort_order = ["use%", "kind", "request", "used", "restarts", "age", "name"]
+sort_order = [
+  "cpu%", "mem%", "cpu", "memory", "restarts", "age", "name",
+  "helm-chart", "helm-namespace", "helm-version",
+]
+storage_sort_order = [
+  "use%", "kind", "request", "used", "restarts", "age", "name",
+  "helm-chart", "helm-namespace", "helm-version",
+]
 
 [notify]
 on = ["cpu>85%", "mem>90%"]
@@ -483,14 +540,14 @@ date (`YYYY-MM-DD`) and add a new `## [<VERSION>] - Work in progress` section.
 No tag or official release is needed for this workflow.
 
 ```sh
-krm version              # krm 1.5.0 (commit abcdef1, built ..., go1.24.7, darwin/arm64)
-krm version --short      # 1.5.0
+krm version              # krm 1.6.0 (commit abcdef1, built ..., go1.24.7, darwin/arm64)
+krm version --short      # 1.6.0
 krm version -o json      # machine-readable, including where the version came from
 ```
 
 The version resolves from whichever source is available: `-ldflags` when built
 through the Makefile (using `VERSION`), the module version when installed with
-`go install ...@v1.5.0`, and the git revision when built from a checkout. A
+`go install ...@v1.6.0`, and the git revision when built from a checkout. A
 build from a modified tree is marked `-dirty`. The `source` field in the JSON
 output says which route a given binary took, which is the quickest way to
 explain a version that reads `dev`.
@@ -524,7 +581,7 @@ cloning to generate it; every dependency version is already pinned in
 [`mikeoertli/homebrew-tap`](https://github.com/mikeoertli/homebrew-tap) when a
 stable `vMAJOR.MINOR.PATCH` tag is pushed. Keep the tag aligned with `VERSION`
 and include the workflow in the tagged commit. For the current version, the
-release tag is `v1.5.0`.
+release tag is `v1.6.0`.
 
 The workflow uses the **TAP_DISPATCH_TOKEN** repository secret to trigger the
 tap's release updater for `krm`. The token needs **Actions: Read and write**

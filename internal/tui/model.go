@@ -380,6 +380,17 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Limits):
 		m.cfg.Render.ShowLimits = !m.cfg.Render.ShowLimits
 		m.rebuildTable()
+	case key.Matches(msg, keys.Helm):
+		m.cfg.Render.ShowHelm = !m.cfg.Render.ShowHelm
+		m.cfg.Options.IncludeHelm = m.cfg.Render.ShowHelm
+		if !m.cfg.Render.ShowHelm && model.IsHelmSortKey(m.cfg.Sort) {
+			m.cfg.Sort = m.sortChoices()[0]
+		}
+		m.rebuild()
+		m.rebuildTable()
+		m.generation++
+		m.loading = true
+		return m, m.collect()
 	case key.Matches(msg, keys.Bars):
 		m.cfg.Render.ShowBars = !m.cfg.Render.ShowBars
 		m.rebuildTable()
@@ -583,6 +594,9 @@ func (m *Model) moveCursor(delta int) {
 func (m *Model) visibleRows() int {
 	// header + status + filter/legend + footer
 	chrome := 5 + len(m.menuLines())
+	if m.snapshot != nil {
+		chrome += len(m.snapshot.Warnings)
+	}
 	if banner := m.refreshBanner(); banner != "" {
 		chrome += lipgloss.Height(banner)
 	}
@@ -659,6 +673,9 @@ func (m *Model) sortChoices() []model.SortKey {
 func (m *Model) visibleSortChoices(order []model.SortKey) []model.SortKey {
 	choices := make([]model.SortKey, 0, len(order))
 	for _, key := range order {
+		if model.IsHelmSortKey(key) && !m.cfg.Render.ShowHelm {
+			continue
+		}
 		if key == model.SortAge && !m.cfg.Render.ShowAge {
 			continue
 		}

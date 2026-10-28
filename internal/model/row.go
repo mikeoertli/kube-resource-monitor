@@ -10,6 +10,7 @@ import (
 type Kind string
 
 const (
+	KindHelmRelease Kind = "HelmRelease"
 	KindContainer   Kind = "Container"
 	KindPod         Kind = "Pod"
 	KindDeployment  Kind = "Deployment"
@@ -31,6 +32,8 @@ const (
 // Short returns the abbreviation kubectl users already have in their fingers.
 func (k Kind) Short() string {
 	switch k {
+	case KindHelmRelease:
+		return "helm"
 	case KindContainer:
 		return "ctr"
 	case KindPod:
@@ -76,7 +79,8 @@ type Row struct {
 	Node      string            `json:"node,omitempty"`
 	Labels    map[string]string `json:"labels,omitempty"`
 
-	Usage Usage `json:"usage"`
+	Usage Usage         `json:"usage"`
+	Helm  *HelmMetadata `json:"helm,omitempty"`
 
 	// Ready is the "2/3" style readiness string for workloads and pods.
 	Ready string `json:"ready,omitempty"`
@@ -175,13 +179,16 @@ const (
 	SortMemPercent     SortKey = "mem%"
 	SortRestarts       SortKey = "restarts"
 	SortAge            SortKey = "age"
+	SortHelmChart      SortKey = "helm-chart"
+	SortHelmNamespace  SortKey = "helm-namespace"
+	SortHelmVersion    SortKey = "helm-version"
 )
 
 // AllSortKeys is the cycle order used by the TUI's sort toggle.
-var AllSortKeys = []SortKey{SortCPUPercent, SortMemPercent, SortCPU, SortMemory, SortRestarts, SortAge, SortName}
+var AllSortKeys = []SortKey{SortCPUPercent, SortMemPercent, SortCPU, SortMemory, SortRestarts, SortAge, SortName, SortHelmChart, SortHelmNamespace, SortHelmVersion}
 
 // StorageSortKeys excludes metrics which are not displayed in storage views.
-var StorageSortKeys = []SortKey{SortStoragePercent, SortKind, SortStorageRequest, SortStorageUsed, SortRestarts, SortAge, SortName}
+var StorageSortKeys = []SortKey{SortStoragePercent, SortKind, SortStorageRequest, SortStorageUsed, SortRestarts, SortAge, SortName, SortHelmChart, SortHelmNamespace, SortHelmVersion}
 
 func IsStorageSortKey(key SortKey) bool {
 	for _, candidate := range StorageSortKeys {
@@ -248,6 +255,30 @@ func Sort(rows []*Row, key SortKey, descending bool) {
 
 	sort.SliceStable(rows, func(i, j int) bool {
 		a, b := rows[i], rows[j]
+		if IsHelmSortKey(key) {
+			av, bv := helmSortValue(a, key), helmSortValue(b, key)
+			// Missing associations stay last in either direction.
+			if (av == "") != (bv == "") {
+				return av != ""
+			}
+			if key == SortHelmVersion && av != "" && bv != "" {
+				if comparison := compareHelmVersions(av, bv); comparison != 0 {
+					if descending {
+						return comparison > 0
+					}
+					return comparison < 0
+				}
+			} else if av != bv {
+				if descending {
+					return av > bv
+				}
+				return av < bv
+			}
+			if a.Namespace != b.Namespace {
+				return a.Namespace < b.Namespace
+			}
+			return a.Name < b.Name
+		}
 		if key == SortStoragePercent || key == SortStorageRequest || key == SortStorageUsed || key == SortStorage || key == SortKind {
 			var av, bv float64
 			var ai, bi int64

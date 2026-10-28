@@ -27,6 +27,7 @@ const (
 	// DaemonSet/Job and groups there. This is the default because it matches how
 	// people reason about their own systems.
 	GroupWorkload    GroupBy = "workload"
+	GroupHelm        GroupBy = "helm"
 	GroupPod         GroupBy = "pod"
 	GroupContainer   GroupBy = "container"
 	GroupNode        GroupBy = "node"
@@ -43,12 +44,12 @@ const (
 )
 
 // AllGroupBy is the cycle order used by the TUI's group toggle.
-var AllGroupBy = []GroupBy{GroupWorkload, GroupPod, GroupContainer, GroupNode, GroupNamespace, GroupStorage}
+var AllGroupBy = []GroupBy{GroupWorkload, GroupHelm, GroupPod, GroupContainer, GroupNode, GroupNamespace, GroupStorage}
 
 // ParseGroupBy validates a --group-by value.
 func ParseGroupBy(s string) (GroupBy, error) {
 	switch g := GroupBy(strings.ToLower(strings.TrimSpace(s))); g {
-	case GroupWorkload, GroupPod, GroupContainer, GroupNode, GroupNamespace, GroupPVC, GroupVolume, GroupStorage,
+	case GroupWorkload, GroupHelm, GroupPod, GroupContainer, GroupNode, GroupNamespace, GroupPVC, GroupVolume, GroupStorage,
 		GroupDeployment, GroupStatefulSet, GroupDaemonSet, GroupReplicaSet, GroupJob, GroupCronJob:
 		return g, nil
 	case "":
@@ -75,7 +76,7 @@ func ParseGroupBy(s string) (GroupBy, error) {
 	case "pvcs":
 		return GroupPVC, nil
 	default:
-		return "", fmt.Errorf("unknown group-by %q (try: workload, pod, container, node, namespace, pvc, volume, storage, deployment, statefulset, daemonset, job)", s)
+		return "", fmt.Errorf("unknown group-by %q (try: workload, helm, pod, container, node, namespace, pvc, volume, storage, deployment, statefulset, daemonset, job)", s)
 	}
 }
 
@@ -112,6 +113,8 @@ type Options struct {
 
 	GroupBy     GroupBy
 	StorageType StorageType
+	// IncludeHelm resolves optional release and chart metadata.
+	IncludeHelm bool
 	// IncludeContainers attaches per-container children to pod rows.
 	IncludeContainers bool
 	// IncludeMissing keeps pods the metrics API had no sample for.
@@ -149,8 +152,8 @@ func New(k kubernetes.Interface, p metrics.Provider) *Collector {
 	return &Collector{kube: k, provider: p}
 }
 
-// Collect gathers one snapshot.
-func (c *Collector) Collect(ctx context.Context, opts Options) (*Snapshot, error) {
+// collect gathers the base resource snapshot before optional Helm enrichment.
+func (c *Collector) collect(ctx context.Context, opts Options) (*Snapshot, error) {
 	if opts.GroupBy == "" {
 		opts.GroupBy = GroupWorkload
 	}
@@ -194,7 +197,7 @@ func (c *Collector) Collect(ctx context.Context, opts Options) (*Snapshot, error
 		row := c.podRow(pod, idx, opts.IncludeContainers)
 		if row.MetricsMissing {
 			snap.MissingMetrics++
-			if !opts.IncludeMissing && opts.GroupBy != GroupWorkload {
+			if !opts.IncludeMissing && opts.GroupBy != GroupWorkload && opts.GroupBy != GroupHelm {
 				continue
 			}
 		}
@@ -520,7 +523,7 @@ func (c *Collector) groupByWorkload(ctx context.Context, opts Options, podRows [
 
 	// Declared replica counts let us show "2/3" on a workload whose third pod
 	// has not been created yet, which pod-derived counting cannot see.
-	if restrict || opts.GroupBy == GroupWorkload {
+	if restrict || opts.GroupBy == GroupWorkload || opts.GroupBy == GroupHelm {
 		c.annotateReplicas(ctx, opts.Namespace, groups)
 	}
 

@@ -78,7 +78,8 @@ a smear.
 [`demo.tape`](demo.tape) is the [VHS](https://github.com/charmbracelet/vhs)
 sequence for [`krm-demo.gif`](krm-demo.gif), embedded in the main README. It
 demonstrates live metrics, filtering, pod/container drilldown, requests and
-limits, sorting by usage/restarts/age/name, namespaces, hot-resource filtering,
+limits, sorting by usage/restarts/age/name, Helm release grouping and optional
+chart metadata columns with sorting, namespaces, hot-resource filtering,
 live `krm node` monitoring, the combined `krm storage` view (request and bound
 percentage bars, storage sort controls), stdout alerts, and CSV files. All
 commands use `--demo`; no cluster or desktop notifications are used.

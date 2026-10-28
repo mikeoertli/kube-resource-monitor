@@ -682,6 +682,7 @@ func TestDefaultSortCyclesIncludeVisibleMetadata(t *testing.T) {
 		m.cfg.Render.Storage = storage
 		m.cfg.Render.ShowAge = true
 		m.cfg.Render.ShowRestarts = true
+		m.cfg.Render.ShowHelm = true
 		order := model.AllSortKeys
 		if storage {
 			order = model.StorageSortKeys

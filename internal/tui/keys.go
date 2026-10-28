@@ -23,6 +23,7 @@ type keyMap struct {
 	Containers  key.Binding
 	Requests    key.Binding
 	Limits      key.Binding
+	Helm        key.Binding
 	Bars        key.Binding
 	Pause       key.Binding
 	Refresh     key.Binding
@@ -52,6 +53,7 @@ var keys = keyMap{
 	Containers:  key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "containers")),
 	Requests:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "requests column")),
 	Limits:      key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "limits column")),
+	Helm:        key.NewBinding(key.WithKeys("H"), key.WithHelp("H", "Helm columns")),
 	Bars:        key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "bars")),
 	Pause:       key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "pause")),
 	Refresh:     key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "refresh now")),
@@ -72,7 +74,7 @@ var helpGroups = []struct {
 	{"Drill down", []key.Binding{keys.Expand, keys.ExpandAll, keys.CollapseAll, keys.Containers}},
 	{"Arrange", []key.Binding{keys.Sort, keys.SortReverse, keys.Group, keys.OnlyProblem}},
 	{"Filter", []key.Binding{keys.Filter, keys.ClearFilter, keys.Namespaces}},
-	{"Columns", []key.Binding{keys.Requests, keys.Limits, keys.Bars}},
+	{"Columns", []key.Binding{keys.Requests, keys.Limits, keys.Bars, keys.Helm}},
 	{"Watch", []key.Binding{keys.Pause, keys.Refresh, keys.Faster, keys.Slower}},
 	{"Other", []key.Binding{keys.Help, keys.Quit}},
 }

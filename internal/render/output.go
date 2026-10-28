@@ -55,14 +55,15 @@ type Export struct {
 
 // ExportRow is one row, flattened into explicit units.
 type ExportRow struct {
-	Kind      string            `json:"kind"`
-	Name      string            `json:"name"`
-	Namespace string            `json:"namespace,omitempty"`
-	Node      string            `json:"node,omitempty"`
-	Labels    map[string]string `json:"labels,omitempty"`
-	Ready     string            `json:"ready,omitempty"`
-	Phase     string            `json:"phase,omitempty"`
-	Restarts  int32             `json:"restarts,omitempty"`
+	Kind      string              `json:"kind"`
+	Name      string              `json:"name"`
+	Namespace string              `json:"namespace,omitempty"`
+	Node      string              `json:"node,omitempty"`
+	Labels    map[string]string   `json:"labels,omitempty"`
+	Helm      *model.HelmMetadata `json:"helm,omitempty"`
+	Ready     string              `json:"ready,omitempty"`
+	Phase     string              `json:"phase,omitempty"`
+	Restarts  int32               `json:"restarts,omitempty"`
 
 	CPUMilli        int64    `json:"cpuMilli"`
 	CPURequestMilli *int64   `json:"cpuRequestMilli,omitempty"`
@@ -121,6 +122,7 @@ func ToExportRow(r *model.Row) ExportRow {
 		Namespace: r.Namespace,
 		Node:      r.Node,
 		Labels:    r.Labels,
+		Helm:      r.Helm,
 		Ready:     r.Ready,
 		Phase:     r.Phase,
 		Restarts:  r.Restarts,

@@ -182,6 +182,35 @@ func demoCluster() (*fake.Clientset, *metrics.Mock) {
 			pod.Status.ContainerStatuses[0].RestartCount = 4
 		}
 	}
+	for _, object := range objs {
+		metadata, ok := object.(metav1.Object)
+		if !ok {
+			continue
+		}
+		release, chart := "", ""
+		switch {
+		case metadata.GetName() == "storefront" && metadata.GetNamespace() == "prod":
+			release, chart = "shop", "shop-2.3.0"
+		case metadata.GetName() == "checkout-api" && metadata.GetNamespace() == "prod":
+			release, chart = "shop", "shop-2.3.0"
+		case metadata.GetName() == "postgres" || metadata.GetName() == "data-postgres-0" || metadata.GetName() == "data-postgres-1":
+			release, chart = "database", "postgresql-16.2.1"
+		case metadata.GetName() == "node-exporter":
+			release, chart = "", "node-exporter-4.1.0" // known Helm, missing release name
+		}
+		if chart != "" {
+			labels := metadata.GetLabels()
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			labels["app.kubernetes.io/managed-by"] = "Helm"
+			labels["helm.sh/chart"] = chart
+			metadata.SetLabels(labels)
+			if release != "" {
+				metadata.SetAnnotations(map[string]string{"meta.helm.sh/release-name": release, "meta.helm.sh/release-namespace": metadata.GetNamespace()})
+			}
+		}
+	}
 	kc := fake.NewSimpleClientset(toRuntimeObjects(objs)...)
 
 	mb := func(n int64) int64 { return n << 20 }

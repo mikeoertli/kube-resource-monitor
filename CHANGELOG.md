@@ -5,7 +5,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.0] - Work in progress
+## [1.6.0] - 2026-10-28
+
+### Added
+
+- Helm release grouping (`-g helm`) with workload/pod/container drilldown and
+  separate unmanaged, unknown-release, and unavailable-ownership groups.
+- Optional trailing Helm chart, release namespace, and chart version columns
+  (`--show-helm`, `show_helm`, or TUI `H`), off by default. Visible columns join
+  the sort cycle and support explicit/configured Helm sorting.
+- Helm detection follows Kubernetes owner metadata without a Helm binary or
+  release-secret access. Opt-in metadata reads report incomplete permissions.
+
+## [1.5.0] - 2026-10-27
 
 ### Added
 

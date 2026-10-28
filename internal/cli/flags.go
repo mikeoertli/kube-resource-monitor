@@ -38,6 +38,7 @@ type globalFlags struct {
 	limits         bool
 	bars           bool
 	barStyle       string
+	helm           bool
 	labels         bool
 	age            bool
 	restarts       bool
@@ -72,8 +73,8 @@ func (f *globalFlags) register(cmd *cobra.Command) {
 	p.BoolVar(&f.initConfig, "init-config", false, "create settings; open template/config diff when the file already exists")
 	p.BoolVar(&f.printConfig, "print-config", false, "print commented defaults without reading config or credentials")
 	p.BoolVarP(&f.showVersion, "version", "v", false, "print version information and exit")
-	p.StringSliceVar(&f.sortOrder, "sort-order", []string{"cpu%", "mem%", "cpu", "memory", "restarts", "age", "name"}, "sort cycle for workload/node views")
-	p.StringSliceVar(&f.storageSortOrder, "storage-sort-order", []string{"use%", "kind", "request", "used", "restarts", "age", "name"}, "sort cycle for storage views")
+	p.StringSliceVar(&f.sortOrder, "sort-order", []string{"cpu%", "mem%", "cpu", "memory", "restarts", "age", "name", "helm-chart", "helm-namespace", "helm-version"}, "sort cycle for workload/node views")
+	p.StringSliceVar(&f.storageSortOrder, "storage-sort-order", []string{"use%", "kind", "request", "used", "restarts", "age", "name", "helm-chart", "helm-namespace", "helm-version"}, "sort cycle for storage views")
 	p.DurationVar(&f.storageInterval, "storage-interval", time.Minute, "default storage refresh interval")
 
 	p.StringVar(&f.kubeconfig, "kubeconfig", "", "path to the kubeconfig file (default: $KUBECONFIG, then ~/.kube/config)")
@@ -87,13 +88,14 @@ func (f *globalFlags) register(cmd *cobra.Command) {
 	p.StringVar(&f.fieldSelector, "field-selector", "", "field selector passed to the pod list, e.g. spec.nodeName=node-1")
 	p.StringVarP(&f.filter, "filter", "f", "", "filter by name; a regular expression when it parses as one, otherwise a case-insensitive substring")
 	p.StringVar(&f.storageType, "type", "all", "storage type: all, ephemeral, or pvc (with storage or -g storage)")
-	p.StringVarP(&f.groupBy, "group-by", "g", "workload", "workload, pod, container, node, namespace, storage, deployment, statefulset, daemonset, job")
+	p.StringVarP(&f.groupBy, "group-by", "g", "workload", "workload, helm, pod, container, node, namespace, storage, deployment, statefulset, daemonset, job")
 
 	p.BoolVarP(&f.containers, "containers", "c", false, "break pods down by container")
 	p.BoolVar(&f.requests, "requests", true, "show the requests columns")
 	p.BoolVar(&f.limits, "limits", true, "show the limits columns")
 	p.BoolVar(&f.bars, "bars", true, "draw usage bars")
 	p.StringVar(&f.barStyle, "bar-style", "blocks", "blocks, braille, or ascii")
+	p.BoolVar(&f.helm, "show-helm", false, "append Helm chart, release namespace, and chart version columns")
 	p.BoolVar(&f.labels, "show-labels", false, "show a labels column")
 	p.BoolVar(&f.age, "show-age", true, "show an age column")
 	p.BoolVar(&f.restarts, "show-restarts", true, "show a restarts column")
@@ -102,7 +104,7 @@ func (f *globalFlags) register(cmd *cobra.Command) {
 	p.BoolVar(&f.onlyProblems, "only-problems", false, "show only rows at or above --threshold")
 	p.Float64Var(&f.threshold, "threshold", 0.85, "fraction of the limit that counts as a problem")
 
-	p.StringVar(&f.sortBy, "sort-by", "cpu%", "cpu, memory, cpu%, mem%, name, restarts, age; storage: use%, kind, request, used, restarts, age, name")
+	p.StringVar(&f.sortBy, "sort-by", "cpu%", "cpu, memory, cpu%, mem%, name, restarts, age, helm-chart, helm-namespace, helm-version; storage: use%, kind, request, used, restarts, age, name")
 	p.BoolVar(&f.reverse, "reverse", false, "reverse the sort order")
 
 	p.StringVar(&f.csvDir, "csv", "", "append samples to one CSV per resource in this output directory")
@@ -137,7 +139,7 @@ func parseSortKey(s string) (model.SortKey, error) {
 	}
 	switch k := model.SortKey(s); k {
 	case model.SortName, model.SortCPU, model.SortMemory, model.SortStorage,
-		model.SortCPUPercent, model.SortMemPercent, model.SortRestarts, model.SortAge, model.SortStoragePercent, model.SortKind, model.SortStorageRequest, model.SortStorageUsed:
+		model.SortCPUPercent, model.SortMemPercent, model.SortRestarts, model.SortAge, model.SortHelmChart, model.SortHelmNamespace, model.SortHelmVersion, model.SortStoragePercent, model.SortKind, model.SortStorageRequest, model.SortStorageUsed:
 		return k, nil
 	case "storage%", "used%":
 		return model.SortStoragePercent, nil
@@ -154,7 +156,7 @@ func parseSortKey(s string) (model.SortKey, error) {
 	case "":
 		return model.SortCPUPercent, nil
 	default:
-		return "", fmt.Errorf("unknown --sort-by %q (want cpu, memory, storage, cpu%%, mem%%, name, restarts, age, use%%, kind, request, or used)", s)
+		return "", fmt.Errorf("unknown --sort-by %q (want cpu, memory, storage, cpu%%, mem%%, name, restarts, age, use%%, kind, request, used, helm-chart, helm-namespace, or helm-version)", s)
 	}
 }
 
@@ -190,6 +192,9 @@ func (f *globalFlags) resolve(ctx context.Context) (*resolved, error) {
 	if err != nil {
 		return nil, err
 	}
+	if model.IsHelmSortKey(sortKey) && !f.helm {
+		return nil, fmt.Errorf("--sort-by %s requires --show-helm", sortKey)
+	}
 	barStyle, err := parseBarStyle(f.barStyle)
 	if err != nil {
 		return nil, err
@@ -210,6 +215,7 @@ func (f *globalFlags) resolve(ctx context.Context) (*resolved, error) {
 			NamePattern:       f.filter,
 			GroupBy:           groupBy,
 			StorageType:       storageType,
+			IncludeHelm:       f.helm,
 			IncludeContainers: f.containers || groupBy == inventory.GroupContainer,
 			IncludeMissing:    f.includeMissing,
 			OnlyProblems:      f.onlyProblems,
@@ -223,6 +229,7 @@ func (f *globalFlags) resolve(ctx context.Context) (*resolved, error) {
 			ShowAge:         f.age,
 			ShowRestarts:    f.restarts,
 			ShowReady:       true,
+			ShowHelm:        f.helm,
 			ShowLabels:      f.labels,
 			Storage:         groupBy == inventory.GroupPVC || groupBy == inventory.GroupVolume || groupBy == inventory.GroupStorage,
 			CombinedStorage: groupBy == inventory.GroupStorage && storageType == inventory.StorageAll,
@@ -233,7 +240,7 @@ func (f *globalFlags) resolve(ctx context.Context) (*resolved, error) {
 	}
 	if r.rendOpts.Storage {
 		if !model.IsStorageSortKey(sortKey) {
-			return nil, fmt.Errorf("--sort-by %s is not available for storage (want use%%, kind, request, used, restarts, age, or name)", sortKey)
+			return nil, fmt.Errorf("--sort-by %s is not available for storage (want use%%, kind, request, used, restarts, age, name, helm-chart, helm-namespace, or helm-version)", sortKey)
 		}
 		if sortKey == model.SortStorage {
 			r.sortKey = model.SortStorageUsed

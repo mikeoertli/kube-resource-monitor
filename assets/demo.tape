@@ -72,6 +72,44 @@ Type "clear"
 Enter
 Sleep 300ms
 Show
+# Helm grouping and standard-view metadata columns, with room for all columns.
+Type "krm --demo -A -g helm --requests=false --limits=false --bars=false"
+Enter
+Sleep 3s
+Type "E"
+Sleep 3s
+Type "C"
+Sleep 1s
+Type "H"
+Sleep 3s
+Type "q"
+Sleep 500ms
+Hide
+Type "clear"
+Enter
+Sleep 300ms
+Show
+# Standard view: toggle metadata and sort by chart, namespace, then version.
+Type "krm --demo -n prod --requests=false --limits=false --bars=false --sort-by name"
+Enter
+Sleep 2s
+Type "H"
+Sleep 3s
+Type "s"
+Sleep 2s
+Type "s"
+Sleep 2s
+Type "s"
+Sleep 2s
+Type "H"
+Sleep 2s
+Type "q"
+Sleep 500ms
+Hide
+Type "clear"
+Enter
+Sleep 300ms
+Show
 # Node capacity, then volume capacity and usage.
 Type "krm node --demo -i 2s"
 Enter

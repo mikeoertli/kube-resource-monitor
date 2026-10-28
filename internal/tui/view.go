@@ -37,7 +37,7 @@ func (m *Model) View() string {
 	}
 	if m.snapshot != nil {
 		for _, w := range m.snapshot.Warnings {
-			b.WriteString(p.Warning.Render("! " + truncate(w, m.width)))
+			b.WriteString(p.Warning.Render("! " + truncate(w, m.width-2)))
 			b.WriteString("\n")
 		}
 	}
@@ -350,7 +350,7 @@ func (m *Model) menuLines() []string {
 		{keys.Expand, "↵ expand"}, {keys.ExpandAll, "E expand all"}, {keys.CollapseAll, "C collapse all"},
 		{keys.Requests, "r requests"}, {keys.Limits, "l limits"}, {keys.Namespaces, "a namespaces"},
 		{keys.OnlyProblem, "! hot"}, {keys.ClearFilter, "esc clear"},
-		{keys.SortReverse, "v reverse"}, {keys.Bars, "b bars"}, {keys.Refresh, "R refresh"},
+		{keys.Helm, "H helm cols"}, {keys.SortReverse, "v reverse"}, {keys.Bars, "b bars"}, {keys.Refresh, "R refresh"},
 		{keys.Faster, "+ faster"}, {keys.Slower, "- slower"},
 	}
 	var lines []string

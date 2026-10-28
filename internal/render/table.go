@@ -18,6 +18,7 @@ type Options struct {
 	ShowAge       bool
 	ShowRestarts  bool
 	ShowReady     bool
+	ShowHelm      bool
 	ShowLabels    bool
 	// Storage swaps the CPU/memory columns for storage ones, for volume views.
 	Storage bool
@@ -135,6 +136,9 @@ func (t *Table) columns() []column {
 	}
 	if t.Opts.ShowLabels {
 		cols = append(cols, column{"LABELS", alignLeft})
+	}
+	if t.Opts.ShowHelm {
+		cols = append(cols, column{"HELM CHART", alignLeft}, column{"HELM NS", alignLeft}, column{"CHART VERSION", alignLeft})
 	}
 	return cols
 }
@@ -256,6 +260,13 @@ func (t *Table) rowCells(fr model.FlatRow) []cell {
 	}
 	if t.Opts.ShowLabels {
 		out = append(out, cell{model.FormatLabels(r.Labels), p.Muted})
+	}
+	if t.Opts.ShowHelm {
+		chart, namespace, version := "-", "-", "-"
+		if r.Helm != nil && r.Helm.Managed {
+			chart, namespace, version = orDash(r.Helm.Chart), orDash(r.Helm.Namespace), orDash(r.Helm.ChartVersion)
+		}
+		out = append(out, cell{chart, p.Muted}, cell{namespace, p.Muted}, cell{version, p.Muted})
 	}
 	return out
 }
